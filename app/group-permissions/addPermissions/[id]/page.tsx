@@ -453,21 +453,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 
 // ✅ Updated API
-import { getGroupsById, assignPermissionsToGroup } from "@/lib/api";
-import api from "@/lib/api"; // make sure axios instance is here
-
-// 🔹 Fetch permissions with filters
-export const getPermissions = async (
-  page: number = 1,
-  app_label?: string,
-  model?: string
-) => {
-  let url = `/api/users/permissions/?page=${page}`;
-  if (app_label) url += `&app_label=${app_label}`;
-  if (model) url += `&model=${model}`;
-  const res = await api.get(url);
-  return res.data;
-};
+import { getGroupsById, assignPermissionsToGroup, getPermissions } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 type Permission = {
   id: number;
@@ -486,6 +473,7 @@ export default function AssignPermissionsPage() {
   const router = useRouter();
   const params = useParams();
   const roleId = params?.id;
+  const { toast } = useToast();
 
   const [roleName, setRoleName] = useState<string>("");
 
@@ -554,18 +542,19 @@ export default function AssignPermissionsPage() {
   const fetchPage = async (pageNum: number) => {
     try {
       setLoading(true);
-      const resp = await getPermissions(
-        pageNum,
-        appFilter !== "All Apps" ? appFilter : undefined,
-        modelFilter !== "All Models" ? modelFilter : undefined
-      );
+      const resp = await getPermissions({
+        page: pageNum,
+        page_size: 20,
+        app_label: appFilter !== "All Apps" ? appFilter : undefined,
+        model: modelFilter !== "All Models" ? modelFilter : undefined,
+      });
 
       const permissions: Permission[] = resp.results ?? [];
       const count: number = resp.count;
 
       setAllPermissions(permissions);
       setPage(pageNum);
-      setTotalPages(Math.ceil(count / 10));
+      setTotalPages(Math.ceil(count / 20));
 
       // Group
       const grouped = permissions.reduce(
@@ -588,6 +577,11 @@ export default function AssignPermissionsPage() {
       ]);
     } catch (err) {
       console.error("Error fetching permissions:", err);
+      toast({
+        title: "Error",
+        description: "Failed to load permissions",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -665,9 +659,20 @@ export default function AssignPermissionsPage() {
       setSaving(true);
       const permissionsArray = Array.from(selectedPermissions);
       await assignPermissionsToGroup(Number(roleId), permissionsArray);
+      
+      toast({
+        title: "Success",
+        description: "Permissions assigned successfully",
+      });
+      
       router.back();
     } catch (error) {
       console.error("Error saving permissions:", error);
+      toast({
+        title: "Error",
+        description: "Failed to assign permissions",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }

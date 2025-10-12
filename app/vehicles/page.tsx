@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ interface Vehicle {
   mileage_km: number;
   license_plate: string;
   online_status: string;
+  status?: string; // Add status field for filtering
 }
 
 interface VehicleType {
@@ -51,6 +52,7 @@ const healthConfig = {
 
 export default function VehiclesPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const fleetId = searchParams.get("fleet");
   const initialTypeId = searchParams.get("vehicletypeId") || "all";
 
@@ -60,14 +62,9 @@ export default function VehiclesPage() {
 
   // filters
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedType, setSelectedType] = useState<string>(initialTypeId);
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedOnlineStatus, setSelectedOnlineStatus] = useState<string>("all");
   const [selectedHealth, setSelectedHealth] = useState<string>("all");
-
-  // new exact-match selectors
-  const [vehicleNameOptions, setVehicleNameOptions] = useState<string[]>([]);
-  const [plateOptions, setPlateOptions] = useState<string[]>([]);
-  const [selectedVehicleName, setSelectedVehicleName] = useState<string>("all");
-  const [selectedPlate, setSelectedPlate] = useState<string>("all");
 
   // pagination
   const [page, setPage] = useState(1);
@@ -95,23 +92,11 @@ export default function VehiclesPage() {
       const resp = await listVehicles(
         pageNum,
         fleetId ? Number(fleetId) : undefined,
-        selectedType !== "all"
-          ? Number(selectedType)
-          : initialTypeId !== "all"
-          ? Number(initialTypeId)
-          : undefined
+        initialTypeId !== "all" ? Number(initialTypeId) : undefined
       );
 
       let rows: Vehicle[] = resp.results ?? [];
       let count = resp.count ?? rows.length;
-
-      // Build unique Select options (Make + Model) and Plates (current page set)
-      const names = [...new Set(rows.map((v) => `${v.make} ${v.model}`.trim()))]
-        .filter(Boolean)
-        .sort();
-      const plates = [...new Set(rows.map((v) => v.license_plate).filter(Boolean))].sort();
-      setVehicleNameOptions(names);
-      setPlateOptions(plates);
 
       // local filters
       if (searchTerm) {
@@ -128,16 +113,27 @@ export default function VehiclesPage() {
         });
       }
 
-      if (selectedVehicleName !== "all") {
-        const target = selectedVehicleName.toLowerCase();
-        rows = rows.filter(
-          (v) => `${v.make} ${v.model}`.trim().toLowerCase() === target
-        );
+      if (selectedStatus !== "all") {
+        // Note: This assumes the API returns a status field. You may need to adjust based on actual API response
+        rows = rows.filter((v) => {
+          // Map the status values - adjust based on your actual data structure
+          const statusMap: Record<string, string> = {
+            "Available": "available",
+            "In-Service/Maintenance": "maintenance", 
+            "Retired": "retired"
+          };
+          return v.status === statusMap[selectedStatus];
+        });
       }
 
-      if (selectedPlate !== "all") {
-        const plate = selectedPlate.toLowerCase();
-        rows = rows.filter((v) => (v.license_plate ?? "").toLowerCase() === plate);
+      if (selectedOnlineStatus !== "all") {
+        rows = rows.filter((v) => {
+          const onlineMap: Record<string, string> = {
+            "Online": "online",
+            "Offline": "offline"
+          };
+          return v.online_status === onlineMap[selectedOnlineStatus];
+        });
       }
 
       if (selectedHealth !== "all") {
@@ -168,7 +164,14 @@ export default function VehiclesPage() {
 
   useEffect(() => {
     fetchVehicles();
-  }, [page, selectedType, selectedHealth, selectedVehicleName, selectedPlate]);
+  }, [page, selectedStatus, selectedOnlineStatus, selectedHealth]);
+
+  // Auto-clear search when search term is empty
+  useEffect(() => {
+    if (searchTerm === "") {
+      fetchVehicles(1);
+    }
+  }, [searchTerm]);
 
   return (
     <div className="space-y-6">
@@ -200,66 +203,40 @@ export default function VehiclesPage() {
             />
           </div>
 
-          {/* Vehicle Name (exact; unique) */}
+          {/* Status Filter */}
           <Select
-            value={selectedVehicleName}
+            value={selectedStatus}
             onValueChange={(val) => {
-              setSelectedVehicleName(val);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-56">
-              <SelectValue placeholder="Vehicle Name (Make + Model)" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Vehicle Names</SelectItem>
-              {vehicleNameOptions.map((n) => (
-                <SelectItem key={n} value={n}>
-                  {n}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* License Plate (exact; unique) */}
-          <Select
-            value={selectedPlate}
-            onValueChange={(val) => {
-              setSelectedPlate(val);
+              setSelectedStatus(val);
               setPage(1);
             }}
           >
             <SelectTrigger className="w-48">
-              <SelectValue placeholder="License Plate" />
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Plates</SelectItem>
-              {plateOptions.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {p}
-                </SelectItem>
-              ))}
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="Available">Available</SelectItem>
+              <SelectItem value="In-Service/Maintenance">In-Service/Maintenance</SelectItem>
+              <SelectItem value="Retired">Retired</SelectItem>
             </SelectContent>
           </Select>
 
-          {/* Vehicle type */}
+          {/* Online Status Filter */}
           <Select
-            value={selectedType}
+            value={selectedOnlineStatus}
             onValueChange={(val) => {
-              setSelectedType(val);
+              setSelectedOnlineStatus(val);
               setPage(1);
             }}
           >
             <SelectTrigger className="w-48">
-              <SelectValue placeholder="Select Vehicle Type" />
+              <SelectValue placeholder="Online Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              {vehicleTypes.map((type) => (
-                <SelectItem key={type.id} value={String(type.id)}>
-                  {type.name}
-                </SelectItem>
-              ))}
+              <SelectItem value="all">All Online Status</SelectItem>
+              <SelectItem value="Online">Online</SelectItem>
+              <SelectItem value="Offline">Offline</SelectItem>
             </SelectContent>
           </Select>
 
@@ -349,11 +326,17 @@ export default function VehiclesPage() {
                                 <Eye className="w-4 h-4" />
                               </Button>
                             </Link>
-                            <Link href={`/vehicles/edit/${vehicle.id}`}>
-                              <Button variant="ghost" size="sm">
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                            </Link>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={(e) => {
+                                console.log("Edit button clicked for vehicle:", vehicle.id);
+                                e.stopPropagation();
+                                router.push(`/vehicles/edit/${vehicle.id}`);
+                              }}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createUser, listFleetOperators } from "@/lib/api"; // <-- make sure these exist
+import { createUser, listFleetOperators, getUserGroups } from "@/lib/api";
 import {
   Card,
   CardHeader,
@@ -49,17 +49,22 @@ export default function AddUserPage() {
 
   // Fleet operators dropdown
   const [fleetOperators, setFleetOperators] = useState<FleetOperator[]>([]);
+  const [userGroups, setUserGroups] = useState<Array<{id: number, name: string}>>([]);
 
   useEffect(() => {
-    async function fetchOperators() {
+    async function fetchData() {
       try {
-        const resp = await listFleetOperators(1); // assuming same API pagination
-        setFleetOperators(resp.results || []);
+        const [operatorsResp, groupsResp] = await Promise.all([
+          listFleetOperators(1),
+          getUserGroups()
+        ]);
+        setFleetOperators(operatorsResp.results || []);
+        setUserGroups(groupsResp || []);
       } catch (e) {
-        console.error("Failed to load fleet operators", e);
+        console.error("Failed to load data", e);
       }
     }
-    fetchOperators();
+    fetchData();
   }, []);
 
 const onSubmit = async () => {
@@ -239,10 +244,18 @@ const onSubmit = async () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Role</Label>
-                  <Input
+                  <select
+                    className="w-full border rounded-md p-2"
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
-                  />
+                  >
+                    <option value="">-- Select Role --</option>
+                    {userGroups.map((group) => (
+                      <option key={group.id} value={group.name}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <Label>Preferred Theme</Label>

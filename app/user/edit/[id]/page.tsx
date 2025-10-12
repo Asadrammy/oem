@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { updateUser, getUser, listFleetOperators } from "@/lib/api";
+import { updateUser, getUser, listFleetOperators, getUserGroups } from "@/lib/api";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,14 +44,16 @@ export default function EditUserPage() {
   const [fleetOperator, setFleetOperator] = useState<number | null>(null);
 
   const [fleetOperators, setFleetOperators] = useState<FleetOperator[]>([]);
+  const [userGroups, setUserGroups] = useState<Array<{id: number, name: string}>>([]);
 
   // Fetch existing user + fleet operators
   useEffect(() => {
     async function fetchData() {
       try {
-        const [userResp, opsResp] = await Promise.all([
+        const [userResp, opsResp, groupsResp] = await Promise.all([
           getUser(userId),
           listFleetOperators(1),
+          getUserGroups(),
         ]);
 
         setUsername(userResp.username);
@@ -72,6 +74,7 @@ export default function EditUserPage() {
         }
 
         setFleetOperators(opsResp.results || []);
+        setUserGroups(groupsResp || []);
       } catch (e: any) {
         setErr(e.message || "Failed to load data");
       } finally {
@@ -230,10 +233,18 @@ export default function EditUserPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Role</Label>
-                  <Input
+                  <select
+                    className="w-full border rounded-md p-2"
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
-                  />
+                  >
+                    <option value="">-- Select Role --</option>
+                    {userGroups.map((group) => (
+                      <option key={group.id} value={group.name}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <Label>Preferred Theme</Label>

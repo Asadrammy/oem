@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ interface FleetOperator {
 }
 
 export default function FleetOperatorPage() {
+  const router = useRouter();
   const [operators, setOperators] = useState<FleetOperator[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -76,6 +78,13 @@ export default function FleetOperatorPage() {
     fetchOperators();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
+
+  // Auto-clear search when search term is empty
+  useEffect(() => {
+    if (searchTerm === "") {
+      fetchOperators(1);
+    }
+  }, [searchTerm]);
 
   return (
     <div className="space-y-6">
@@ -163,11 +172,17 @@ export default function FleetOperatorPage() {
                               <Eye className="w-4 h-4" />
                             </Button>
                           </Link>
-                          <Link href={`/fleet-operators/edit/${op.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                          </Link>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={(e) => {
+                              console.log("Edit button clicked for operator:", op.id);
+                              e.stopPropagation();
+                              router.push(`/fleet-operators/edit/${op.id}`);
+                            }}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"

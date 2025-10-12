@@ -518,13 +518,13 @@ function toISODate(d: Date) {
   return new Date(d.getTime()).toISOString();
 }
 
-function startOfTodayUTC(now = new Date()) {
+function startOfTodayUTC(now = (typeof window !== 'undefined' ? new Date() : new Date(0))) {
   const d = new Date(now);
   d.setUTCHours(0, 0, 0, 0);
   return d;
 }
 
-function normalizeByDateRange(filters: Filters, now = new Date()): Filters {
+function normalizeByDateRange(filters: Filters, now = (typeof window !== 'undefined' ? new Date() : new Date(0))): Filters {
   // If explicit start/end provided, honor them; else compute from preset
   if (filters.start_date || filters.end_date) {
     return {

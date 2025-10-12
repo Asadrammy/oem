@@ -11,6 +11,9 @@ import {
   Plus,
   MoreVertical,
   UserPlus,
+  Search,
+  Filter,
+  X,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -48,13 +51,18 @@ import {
   getGroupUsers,
   deleteGroupsById,
   updateGroupsById,
+  assignPermissionsToGroup,
+  removeUsersFromGroup,
 } from "@/lib/api";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Permission = {
   id: number;
   name: string;
   codename: string;
+  content_type_app: string;
+  content_type_model: string;
   content_type_name: string;
 };
 
@@ -94,6 +102,15 @@ export default function RoleDetailPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 10;
   const [currentPage1, setCurrentPage1] = useState(1);
+  
+  // Permission filters
+  const [permissionSearch, setPermissionSearch] = useState("");
+  const [selectedApp, setSelectedApp] = useState<string>("");
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [sortBy, setSortBy] = useState<string>("name");
+  
+  // User search
+  const [userSearch, setUserSearch] = useState("");
   // NEW: delete confirm state
 
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -186,6 +203,16 @@ export default function RoleDetailPage() {
       fetchUsers();
     }
   };
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [permissionSearch, selectedApp, selectedModel]);
+
+  // Reset user page when search changes
+  useEffect(() => {
+    setCurrentPage1(1);
+  }, [userSearch]);
 
   const handleRefresh = async () => {
     if (!roleId) return;
@@ -308,6 +335,64 @@ const handleUpdateSubmit = async () => {
 
   const handleAddUser = () => {
     router.push(`/group-permissions/addUsers/${roleId}`);
+  };
+
+  // Remove user from group
+  const handleRemoveUser = async (userId: number) => {
+    if (!users) return;
+    
+    const confirmRemove = window.confirm("Are you sure you want to remove this user from the role?");
+    if (!confirmRemove) return;
+    
+    try {
+      await removeUsersFromGroup(Number(roleId), [userId]);
+      
+      toast({
+        title: "Success",
+        description: "User removed successfully",
+      });
+      
+      // Refresh users
+      await fetchUsers();
+    } catch (error) {
+      console.error("Error removing user:", error);
+      toast({
+        title: "Error",
+        description: "Failed to remove user",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Remove permission from group
+  const handleRemovePermission = async (permissionId: number) => {
+    if (!permissions) return;
+    
+    const confirmRemove = window.confirm("Are you sure you want to remove this permission from the role?");
+    if (!confirmRemove) return;
+    
+    try {
+      const remainingPermissions = permissions
+        .filter(p => p.id !== permissionId)
+        .map(p => p.id);
+      
+      await assignPermissionsToGroup(Number(roleId), remainingPermissions);
+      
+      toast({
+        title: "Success",
+        description: "Permission removed successfully",
+      });
+      
+      // Refresh permissions
+      await fetchPermissions();
+    } catch (error) {
+      console.error("Error removing permission:", error);
+      toast({
+        title: "Error",
+        description: "Failed to remove permission",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleUserAction = (action: string, userId: number) => {
@@ -583,6 +668,57 @@ const handleUpdateSubmit = async () => {
                 </div>
               </div>
 
+              {/* Filters */}
+              <div className="p-6 border-b border-gray-200 bg-gray-50">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="relative flex-1 min-w-64">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      placeholder="Search permissions..."
+                      className="pl-10"
+                      value={permissionSearch}
+                      onChange={(e) => setPermissionSearch(e.target.value)}
+                    />
+                  </div>
+                  <Select value={selectedApp} onValueChange={setSelectedApp}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="All Apps" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All Apps</SelectItem>
+                      {Array.from(new Set(permissions.map(p => p.content_type_app))).map(app => (
+                        <SelectItem key={app} value={app}>{app}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={selectedModel} onValueChange={setSelectedModel}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="All Models" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All Models</SelectItem>
+                      {selectedApp && Array.from(new Set(
+                        permissions
+                          .filter(p => p.content_type_app === selectedApp)
+                          .map(p => p.content_type_model)
+                      )).map(model => (
+                        <SelectItem key={model} value={model}>{model}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="name">Name</SelectItem>
+                      <SelectItem value="codename">Codename</SelectItem>
+                      <SelectItem value="content_type_name">Content Type</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div className="overflow-hidden">
                 {permissionsLoading ? (
                   <div className="flex justify-center items-center py-8">
@@ -597,45 +733,99 @@ const handleUpdateSubmit = async () => {
                         <TableRow>
                           <TableHead>Permission Name</TableHead>
                           <TableHead>Codename</TableHead>
-                          <TableHead>Content Type</TableHead>
+                          <TableHead>App / Model</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {currentRows.length === 0 ? (
+                        {(() => {
+                          // Apply filters and sorting
+                          let filteredPermissions = permissions.filter(permission => {
+                            const matchesSearch = !permissionSearch || 
+                              permission.name.toLowerCase().includes(permissionSearch.toLowerCase()) ||
+                              permission.codename.toLowerCase().includes(permissionSearch.toLowerCase());
+                            const matchesApp = !selectedApp || permission.content_type_app === selectedApp;
+                            const matchesModel = !selectedModel || permission.content_type_model === selectedModel;
+                            return matchesSearch && matchesApp && matchesModel;
+                          });
+
+                          // Apply sorting
+                          filteredPermissions.sort((a, b) => {
+                            switch (sortBy) {
+                              case "name":
+                                return a.name.localeCompare(b.name);
+                              case "codename":
+                                return a.codename.localeCompare(b.codename);
+                              case "content_type_name":
+                                return a.content_type_name.localeCompare(b.content_type_name);
+                              default:
+                                return 0;
+                            }
+                          });
+
+                          // Apply pagination
+                          const startIndex = (currentPage - 1) * rowsPerPage;
+                          const endIndex = startIndex + rowsPerPage;
+                          const paginatedPermissions = filteredPermissions.slice(startIndex, endIndex);
+
+                          return paginatedPermissions.length === 0 ? (
                           <TableRow>
                             <TableCell
-                              colSpan={3}
+                                colSpan={4}
                               className="text-center py-8 text-gray-500"
                             >
-                              No permissions assigned to this role
+                                No permissions match the current filters
                             </TableCell>
                           </TableRow>
                         ) : (
-                          currentRows.map((permission) => (
+                            paginatedPermissions.map((permission) => (
                             <TableRow key={permission.id}>
                               <TableCell className="font-medium">
                                 {permission.name}
                               </TableCell>
                               <TableCell className="text-gray-700">
-                                <span className="bg-gray-100 p-1 rounded">
+                                  <code className="bg-gray-100 px-2 py-1 rounded text-sm">
                                   {permission.codename}
-                                </span>
+                                  </code>
                               </TableCell>
                               <TableCell className="text-gray-700">
-                                {permission.content_type_name}
+                                  {permission.content_type_app} / {permission.content_type_model}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemovePermission(permission.id)}
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </Button>
                               </TableCell>
                             </TableRow>
                           ))
-                        )}
+                          );
+                        })()}
                       </TableBody>
                     </Table>
 
                     {/* Pagination controls */}
-                    {totalPages > 1 && (
+                    {(() => {
+                      // Calculate total pages based on filtered permissions
+                      const filteredPermissions = permissions.filter(permission => {
+                        const matchesSearch = !permissionSearch || 
+                          permission.name.toLowerCase().includes(permissionSearch.toLowerCase()) ||
+                          permission.codename.toLowerCase().includes(permissionSearch.toLowerCase());
+                        const matchesApp = !selectedApp || permission.content_type_app === selectedApp;
+                        const matchesModel = !selectedModel || permission.content_type_model === selectedModel;
+                        return matchesSearch && matchesApp && matchesModel;
+                      });
+                      const filteredTotalPages = Math.ceil(filteredPermissions.length / rowsPerPage);
+                      
+                      return filteredTotalPages > 1 && (
                       <div className="flex justify-between items-center mt-6">
                         {/* Page info */}
                         <span className="text-sm text-gray-600">
-                          Page {currentPage} of {totalPages}
+                            Page {currentPage} of {filteredTotalPages}
                         </span>
 
                         {/* Pagination buttons */}
@@ -651,12 +841,12 @@ const handleUpdateSubmit = async () => {
                           </Button>
 
                           {/* Numbered buttons with ellipsis */}
-                          {Array.from({ length: totalPages }, (_, i) => i + 1)
+                            {Array.from({ length: filteredTotalPages }, (_, i) => i + 1)
                             .filter((p) => {
                               return (
                                 p === 1 ||
                                 p === 2 ||
-                                p === totalPages ||
+                                  p === filteredTotalPages ||
                                 (p >= currentPage - 1 && p <= currentPage + 1)
                               );
                             })
@@ -686,14 +876,15 @@ const handleUpdateSubmit = async () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            disabled={currentPage === totalPages}
+                              disabled={currentPage === filteredTotalPages}
                             onClick={() => setCurrentPage((p) => p + 1)}
                           >
                             Next
                           </Button>
                         </div>
                       </div>
-                    )}
+                      );
+                    })()}
                   </>
                 )}
               </div>
@@ -715,6 +906,21 @@ const handleUpdateSubmit = async () => {
                 </div>
               </div>
 
+              {/* User Search */}
+              <div className="p-6 border-b border-gray-200 bg-gray-50">
+                <div className="flex items-center gap-4">
+                  <div className="relative flex-1 min-w-64">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      placeholder="Search users..."
+                      className="pl-10"
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
               <>
                 <Table>
                   <TableHeader>
@@ -727,17 +933,32 @@ const handleUpdateSubmit = async () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {currentRows1.length === 0 ? (
+                    {(() => {
+                      // Apply search filter
+                      const filteredUsers = users.filter(user => {
+                        const matchesSearch = !userSearch || 
+                          user.username.toLowerCase().includes(userSearch.toLowerCase()) ||
+                          user.email.toLowerCase().includes(userSearch.toLowerCase()) ||
+                          getUserDisplayName(user).toLowerCase().includes(userSearch.toLowerCase());
+                        return matchesSearch;
+                      });
+
+                      // Apply pagination
+                      const startIndex = (currentPage1 - 1) * rowsPerPage1;
+                      const endIndex = startIndex + rowsPerPage1;
+                      const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+
+                      return paginatedUsers.length === 0 ? (
                       <TableRow>
                         <TableCell
                           colSpan={5}
                           className="text-center py-8 text-gray-500"
                         >
-                          No users assigned to this role
+                            {userSearch ? "No users match the search criteria" : "No users assigned to this role"}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      currentRows1.map((user) => (
+                        paginatedUsers.map((user) => (
                         <TableRow key={user.id}>
                           <TableCell className="font-medium">
                             {user.username}
@@ -756,6 +977,7 @@ const handleUpdateSubmit = async () => {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
+                              <div className="flex items-center gap-2">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
@@ -783,35 +1005,56 @@ const handleUpdateSubmit = async () => {
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRemoveUser(user.id)}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
                           </TableCell>
                         </TableRow>
                       ))
-                    )}
+                      );
+                    })()}
                   </TableBody>
                 </Table>
 
                 {/* Pagination controls */}
-                {totalPages1 > 1 && (
+                {(() => {
+                  // Calculate total pages based on filtered users
+                  const filteredUsers = users.filter(user => {
+                    const matchesSearch = !userSearch || 
+                      user.username.toLowerCase().includes(userSearch.toLowerCase()) ||
+                      user.email.toLowerCase().includes(userSearch.toLowerCase()) ||
+                      getUserDisplayName(user).toLowerCase().includes(userSearch.toLowerCase());
+                    return matchesSearch;
+                  });
+                  const filteredTotalPages = Math.ceil(filteredUsers.length / rowsPerPage1);
+                  
+                  return filteredTotalPages > 1 && (
                   <div className="flex justify-between items-center mt-6">
                     <span className="text-sm text-gray-600">
-                      Page {currentPage1} of {totalPages1}
+                        Page {currentPage1} of {filteredTotalPages}
                     </span>
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
                         size="sm"
                         disabled={currentPage1 === 1}
-                        onClick={() => setCurrentPage((p) => p - 1)}
+                          onClick={() => setCurrentPage1((p) => p - 1)}
                       >
                         Previous
                       </Button>
 
-                      {Array.from({ length: totalPages1 }, (_, i) => i + 1)
+                        {Array.from({ length: filteredTotalPages }, (_, i) => i + 1)
                         .filter((p) => {
                           return (
                             p === 1 ||
                             p === 2 ||
-                            p === totalPages1 ||
+                              p === filteredTotalPages ||
                             (p >= currentPage1 - 1 && p <= currentPage1 + 1)
                           );
                         })
@@ -838,14 +1081,15 @@ const handleUpdateSubmit = async () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={currentPage1 === totalPages1}
+                          disabled={currentPage1 === filteredTotalPages}
                         onClick={() => setCurrentPage1((p) => p + 1)}
                       >
                         Next
                       </Button>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
               </>
             </TabsContent>
           </Tabs>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,7 @@ interface VehicleType {
 }
 
 export default function AlertRulesPage() {
+  const router = useRouter();
   const [alertRules, setAlertRules] = useState<AlertRule[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,7 +115,14 @@ export default function AlertRulesPage() {
   useEffect(() => {
     fetchAlertRules();
   }, [page, activeSearchTerm, selectedType]);
-  // Changed from searchTerm to activeSearchTerm
+
+  // Auto-clear search when search term is empty
+  useEffect(() => {
+    if (searchTerm === "") {
+      setActiveSearchTerm("");
+      setPage(1);
+    }
+  }, [searchTerm]);
 
   return (
     <div className="space-y-6">
@@ -217,11 +226,17 @@ export default function AlertRulesPage() {
                           </Link>
 
                           {/* Edit */}
-                          <Link href={`/alerts/edit/${rule.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                          </Link>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={(e) => {
+                              console.log("Edit button clicked for alert:", rule.id);
+                              e.stopPropagation();
+                              router.push(`/alerts/edit/${rule.id}`);
+                            }}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
 
                           {/* Delete */}
                           <Button

@@ -56,7 +56,7 @@ export function VehiclesTable({
   const health = (d: OBDDevice): "good" | "warning" | "critical" => {
     const ts = d.last_communication_at ? Date.parse(d.last_communication_at) : NaN
     if (!ts || Number.isNaN(ts)) return "critical"
-    const diff = Date.now() - ts
+    const diff = (typeof window !== 'undefined' ? Date.now() : 0) - ts
     if (diff > 72 * 60 * 60 * 1000) return "critical"
     if (diff > 24 * 60 * 60 * 1000) return "warning"
     return "good"
@@ -73,7 +73,7 @@ export function VehiclesTable({
     if (!iso) return "—"
     const ts = Date.parse(iso)
     if (Number.isNaN(ts)) return "—"
-    const diff = Date.now() - ts
+    const diff = (typeof window !== 'undefined' ? Date.now() : 0) - ts
     const m = Math.floor(diff / 60000)
     if (m < 60) return `${m}m ago`
     const h = Math.floor(m / 60)

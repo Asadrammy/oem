@@ -319,16 +319,18 @@ export default function Page() {
                           <Eye className="w-4 h-4" />
                         </Button>
 
-                        <Link href={`/vehicle-types/edit/${row.id}`}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Edit"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                        </Link>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          title="Edit"
+                          onClick={(e) => {
+                            console.log("Edit button clicked for vehicle type:", row.id);
+                            e.stopPropagation();
+                            router.push(`/vehicle-types/edit/${row.id}`);
+                          }}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
 
                         {/* Delete Dialog */}
                         <Dialog

@@ -20,6 +20,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Restore from localStorage
   useEffect(() => {
+    // Only run on client side to avoid hydration issues
+    if (typeof window === 'undefined') return;
+    
     const storedUser = localStorage.getItem("user")
     if (storedUser) {
       setUser(JSON.parse(storedUser))
@@ -28,12 +31,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = (userData: User) => {
     setUser(userData)
-    localStorage.setItem("user", JSON.stringify(userData))
+    if (typeof window !== 'undefined') {
+      localStorage.setItem("user", JSON.stringify(userData))
+    }
   }
 
   const logout = () => {
     setUser(null)
-    localStorage.removeItem("user")
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem("user")
+    }
   }
 
   return (

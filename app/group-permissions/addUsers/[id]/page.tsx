@@ -20,8 +20,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { 
   getGroupsById, 
   listUsers, 
-  assignUsersToGroup 
+  addUsersToGroup 
 } from '@/lib/api';
+import { useToast } from '@/components/ui/use-toast';
 
 type User = {
   id: number;
@@ -36,6 +37,7 @@ export default function AssignUsersPage() {
   const router = useRouter();
   const params = useParams();
   const roleId = params?.id;
+  const { toast } = useToast();
 
   const [roleName, setRoleName] = useState<string>('');
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -67,13 +69,23 @@ export default function AssignUsersPage() {
           (roleResponse.user_set || roleResponse.users || []).map((u: any) => Number(u.id))
         );
         setCurrentUsers(currentUserIds);
-        setSelectedUsers(new Set(currentUserIds));
+        // Don't pre-select any users since we're only showing available users
+        setSelectedUsers(new Set());
 
-        const usersResponse = await listUsers();
+        // Fetch users excluding those already in the group
+        const usersResponse = await listUsers({
+          exclude_group_id: Number(roleId),
+          page_size: 50,
+        });
         const users = usersResponse.results || usersResponse || [];
         setAllUsers(users);
       } catch (error) {
         console.error('Error fetching data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load users",
+          variant: "destructive",
+        });
       } finally {
         setLoading(false);
       }
@@ -147,11 +159,27 @@ export default function AssignUsersPage() {
     if (!roleId) return;
     try {
       setSaving(true);
-      const usersArray = Array.from(selectedUsers);
-      await assignUsersToGroup(Number(roleId), usersArray);
-      alert("Users added to/from group successfully");
+      
+      // Get selected users (all are available users)
+      const selectedUserIds = Array.from(selectedUsers);
+      
+      if (selectedUserIds.length > 0) {
+        await addUsersToGroup(Number(roleId), selectedUserIds);
+      }
+      
+      toast({
+        title: "Success",
+        description: `${selectedUserIds.length} users added to role successfully`,
+      });
+      
+      router.back();
     } catch (error) {
       console.error('Error saving users:', error);
+      toast({
+        title: "Error",
+        description: "Failed to assign users to role",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }

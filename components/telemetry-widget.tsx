@@ -24,7 +24,7 @@ function fmtAgo(iso?: string | null): string {
   if (!iso) return "—";
   const ts = Date.parse(iso);
   if (Number.isNaN(ts)) return "—";
-  const diff = Date.now() - ts;
+  const diff = (typeof window !== 'undefined' ? Date.now() : 0) - ts;
   const m = Math.floor(diff / 60000);
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);

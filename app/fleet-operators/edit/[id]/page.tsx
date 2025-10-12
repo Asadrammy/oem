@@ -36,8 +36,6 @@ export default function EditFleetOperatorPage() {
   const [address, setAddress] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
-  const [maxVehicles, setMaxVehicles] = useState("");
-  const [subscriptionTier, setSubscriptionTier] = useState("basic");
   const [isActive, setIsActive] = useState(true);
 
   // Configuration Settings
@@ -51,10 +49,8 @@ export default function EditFleetOperatorPage() {
   const [logoPreview, setLogoPreview] = useState<string>("");
   const [existingLogoUrl, setExistingLogoUrl] = useState<string>("");
 
-  // Alert Settings
-  const [alertEmail, setAlertEmail] = useState("");
-  const [maintenanceSchedule, setMaintenanceSchedule] = useState("");
-  const [geofenceRadius, setGeofenceRadius] = useState("");
+  // Dynamic metadata
+  const [metadataPairs, setMetadataPairs] = useState<Array<{key: string, value: string}>>([]);
 
   // Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -104,6 +100,21 @@ export default function EditFleetOperatorPage() {
     }
   };
 
+  // Metadata management functions
+  const addMetadataPair = () => {
+    setMetadataPairs([...metadataPairs, { key: "", value: "" }]);
+  };
+
+  const removeMetadataPair = (index: number) => {
+    setMetadataPairs(metadataPairs.filter((_, i) => i !== index));
+  };
+
+  const updateMetadataPair = (index: number, field: 'key' | 'value', value: string) => {
+    const updated = [...metadataPairs];
+    updated[index][field] = value;
+    setMetadataPairs(updated);
+  };
+
   // Fetch operator data
   useEffect(() => {
     if (id) {
@@ -130,15 +141,13 @@ export default function EditFleetOperatorPage() {
             setExistingLogoUrl(data.logo);
           }
 
-          // Metadata
+          // Metadata - convert to key-value pairs
           if (data.metadata) {
-            setMaxVehicles(data.metadata.max_vehicles?.toString() || "");
-            setSubscriptionTier(data.metadata.subscription_tier || "basic");
-            setAlertEmail(data.metadata.alert_email || "");
-            setMaintenanceSchedule(data.metadata.maintenance_schedule || "");
-            setGeofenceRadius(
-              data.metadata.geofence_radius_meters?.toString() || ""
-            );
+            const pairs = Object.entries(data.metadata).map(([key, value]) => ({
+              key,
+              value: String(value || "")
+            }));
+            setMetadataPairs(pairs);
           }
         })
         .catch(() => setErr("Failed to load fleet operator"))
@@ -168,14 +177,13 @@ export default function EditFleetOperatorPage() {
       formData.append("primary_color", primaryColor);
       formData.append("is_active", isActive.toString());
 
-      // Add metadata as JSON string
-      const metadata = {
-        alert_email: alertEmail.trim(),
-        maintenance_schedule: maintenanceSchedule,
-        geofence_radius_meters: Number(geofenceRadius) || 0,
-        subscription_tier: subscriptionTier,
-        max_vehicles: Number(maxVehicles) || 0,
-      };
+      // Convert metadata pairs to object
+      const metadata: Record<string, any> = {};
+      metadataPairs.forEach(pair => {
+        if (pair.key.trim()) {
+          metadata[pair.key.trim()] = pair.value.trim();
+        }
+      });
       formData.append("metadata", JSON.stringify(metadata));
 
       // Add file if selected
@@ -347,34 +355,6 @@ export default function EditFleetOperatorPage() {
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Configuration</h3>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Max Vehicles</Label>
-                <Input
-                  type="number"
-                  value={maxVehicles}
-                  onChange={(e) => setMaxVehicles(e.target.value)}
-                  placeholder="200"
-                />
-              </div>
-              <div>
-                <Label>Subscription Tier</Label>
-                <Select
-                  value={subscriptionTier}
-                  onValueChange={setSubscriptionTier}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="basic">Basic</SelectItem>
-                    <SelectItem value="professional">Professional</SelectItem>
-                    <SelectItem value="enterprise">Enterprise</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <Label>Timezone</Label>
@@ -465,52 +445,57 @@ export default function EditFleetOperatorPage() {
             </div>
           </div>
 
-          {/* Alert & Maintenance Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Alert & Maintenance Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Alert Email</Label>
-                  <Input
-                    type="email"
-                    value={alertEmail}
-                    onChange={(e) => setAlertEmail(e.target.value)}
-                    placeholder="alerts@company.com"
-                  />
-                </div>
-                <div>
-                  <Label>Maintenance Schedule</Label>
-                  <Select
-                    value={maintenanceSchedule}
-                    onValueChange={setMaintenanceSchedule}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select schedule" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                      <SelectItem value="bi-monthly">Bi-monthly</SelectItem>
-                      <SelectItem value="quarterly">Quarterly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+          {/* Advanced Metadata Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium">Advanced Metadata</h3>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addMetadataPair}
+              >
+                + Add Attribute
+              </Button>
+            </div>
+            
+            {metadataPairs.length > 0 && (
+              <div className="space-y-3">
+                {metadataPairs.map((pair, index) => (
+                  <div key={index} className="grid grid-cols-12 gap-2 items-center">
+                    <div className="col-span-5">
+                      <Input
+                        placeholder="Key (e.g., billing_reference)"
+                        value={pair.key}
+                        onChange={(e) => updateMetadataPair(index, 'key', e.target.value)}
+                      />
+                    </div>
+                    <div className="col-span-5">
+                      <Input
+                        placeholder="Value (e.g., ACME-2024)"
+                        value={pair.value}
+                        onChange={(e) => updateMetadataPair(index, 'value', e.target.value)}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeMetadataPair(index)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                <p className="text-sm text-gray-500">
+                  Hint: Values are stored as JSON when you save.
+                </p>
               </div>
-              <div>
-                <Label>Geofence Radius (meters)</Label>
-                <Input
-                  type="number"
-                  value={geofenceRadius}
-                  onChange={(e) => setGeofenceRadius(e.target.value)}
-                  placeholder="150"
-                />
-              </div>
-            </CardContent>
-          </Card>
+            )}
+          </div>
+
 
           <div className="flex justify-end gap-4">
             <Link href="/fleet-operators">

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ interface User {
 }
 
 export default function UsersPage() {
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -75,6 +77,13 @@ export default function UsersPage() {
   useEffect(() => {
     fetchUsers();
   }, [page]);
+
+  // Auto-clear search when search term is empty
+  useEffect(() => {
+    if (searchTerm === "") {
+      fetchUsers(1);
+    }
+  }, [searchTerm]);
 
   return (
     <div className="space-y-6">
@@ -172,11 +181,17 @@ export default function UsersPage() {
                               <Eye className="w-4 h-4" />
                             </Button>
                           </Link>
-                          <Link href={`/user/edit/${u.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                          </Link>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={(e) => {
+                              console.log("Edit button clicked for user:", u.id);
+                              e.stopPropagation();
+                              router.push(`/user/edit/${u.id}`);
+                            }}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"

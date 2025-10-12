@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, Edit, Trash2, Search, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ type Device = {
 };
 
 export default function DevicesPage() {
+  const router = useRouter();
   const [items, setItems] = useState<Device[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
@@ -215,11 +217,17 @@ export default function DevicesPage() {
                             <Eye className="w-4 h-4" />
                           </Button>
                         </Link>
-                        <Link href={`/obd-device/edit/${d.id}`}>
-                          <Button variant="ghost" size="sm">
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                        </Link>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={(e) => {
+                            console.log("Edit button clicked for device:", d.id);
+                            e.stopPropagation();
+                            router.push(`/obd-device/edit/${d.id}`);
+                          }}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
 
                         {/* Delete */}
                         <Dialog

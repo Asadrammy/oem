@@ -162,8 +162,23 @@ export const getMyProfile = async () => {
   return res.data;
 };
 
-export const listUsers = async (page: Number = 1) => {
-  const res = await api.get(`/api/users/users/?page=${page}`);
+export const listUsers = async (params: {
+  page?: number;
+  page_size?: number;
+  search?: string;
+  ordering?: string;
+  exclude_group_id?: number;
+} = {}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params.page) queryParams.set('page', params.page.toString());
+  if (params.page_size) queryParams.set('page_size', params.page_size.toString());
+  if (params.search) queryParams.set('search', params.search);
+  if (params.ordering) queryParams.set('ordering', params.ordering);
+  if (params.exclude_group_id) queryParams.set('exclude_group_id', params.exclude_group_id.toString());
+  
+  const url = `/api/users/users/${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const res = await api.get(url);
   return res.data;
 };
 export const createUser = async (payload: any) => {
@@ -173,6 +188,13 @@ export const createUser = async (payload: any) => {
 
 export const getUserPermissions = async (userId: number) => {
   const res = await api.get(`/api/users/users/${userId}/permissions/`);
+  return res.data;
+};
+
+export const updateUserPermissions = async (userId: number, permissions: number[]) => {
+  const res = await api.post(`/api/users/users/${userId}/permissions/`, {
+    permissions
+  });
   return res.data;
 };
 export const updateUser = async (id: number, payload: any) => {
@@ -204,6 +226,22 @@ export const assignUsersToGroup = async (groupId: number, users: number[]) => {
   return res.data;
 };
 
+export const addUsersToGroup = async (groupId: number, users: number[]) => {
+  const res = await api.post(`/api/users/groups/${groupId}/users/`, { 
+    action: "add", 
+    users 
+  });
+  return res.data;
+};
+
+export const removeUsersFromGroup = async (groupId: number, users: number[]) => {
+  const res = await api.post(`/api/users/groups/${groupId}/users/`, { 
+    action: "remove", 
+    users 
+  });
+  return res.data;
+};
+
 export const assignPermissionsToGroup = async (
   groupId: number,
   permissions: number[]
@@ -213,9 +251,9 @@ export const assignPermissionsToGroup = async (
   });
   return res.data;
 };
-export const getGroups = async (page: number = 1) => {
-  const res = await api.get(`/api/users/groups/?page=${page}`);
-  return res.data.results;
+export const getUserGroups = async () => {
+  const res = await api.get(`/api/users/groups/`);
+  return res.data.results || res.data;
 };
 export const AddGroups = async (payload: any) => {
   const res = await api.post(`/api/users/groups/`, payload);
@@ -233,8 +271,23 @@ export const updateGroupsById = async (id: number,payload: any) => {
   const res = await api.put(`/api/users/groups/${id}/`,payload);
   return res.data;
 };
-export const getPermissions = async (page: number = 1) => {
-  const res = await api.get(`/api/users/permissions/?page=${page}`);
+export const getPermissions = async (params: {
+  page?: number;
+  page_size?: number;
+  search?: string;
+  app_label?: string;
+  model?: string;
+} = {}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params.page) queryParams.set('page', params.page.toString());
+  if (params.page_size) queryParams.set('page_size', params.page_size.toString());
+  if (params.search) queryParams.set('search', params.search);
+  if (params.app_label) queryParams.set('app_label', params.app_label);
+  if (params.model) queryParams.set('model', params.model);
+  
+  const url = `/api/users/permissions/${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const res = await api.get(url);
   return res.data;
 };
 
@@ -363,6 +416,7 @@ export const getVehicleById = async (id: number) => {
   const res = await api.get(`/api/fleet/vehicles/${id}/`);
   return res.data;
 };
+
 export const deleteVehicle = async (id: number) => {
   const response = await api.delete(`/api/fleet/vehicles/${id}/`);
   return response.data;
@@ -626,19 +680,38 @@ export const updateFleetOperatorLogo = async (id: number, file: File) => {
 // For FormData (file uploads)
 export const createFleetOperator = async (data: any) => {
   try {
-    console.log("Sending JSON payload:", data);
+    console.log("Sending FormData payload:", data);
+    console.log("API Base URL:", api.defaults.baseURL);
+    console.log("Full URL:", `${api.defaults.baseURL}/api/fleet/fleet-operators/`);
 
-    const res = await api.post("/api/fleet/fleet-operators/", data, {
-      headers: {
-        "Content-Type": "application/json",
-      },
-      timeout: 30000,
-    });
+    // Check if data is FormData, send it correctly
+    let config = {};
+    if (data instanceof FormData) {
+      config = {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+        timeout: 30000,
+      };
+    } else {
+      config = {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        timeout: 30000,
+      };
+    }
+
+    console.log("Request config:", config);
+
+    const res = await api.post("/api/fleet/fleet-operators/", data, config);
 
     console.log("API response:", res.data);
     return res.data;
   } catch (error: any) {
     console.error("API Error:", error.response?.data || error.message);
+    console.error("Error status:", error.response?.status);
+    console.error("Error headers:", error.response?.headers);
 
     const errorMessage =
       error.response?.data?.message ||
@@ -813,7 +886,7 @@ export default api;
 // export const deleteUser = async (id: number) => (await api.delete(`/api/users/users/${id}/`)).data;
 
 // // ----------------- GROUP & PERMISSIONS -----------------
-// export const getGroups = async () => (await api.get("/api/users/groups/")).data.results;
+export const getGroups = async () => (await api.get("/api/users/groups/")).data.results;
 // export const getPermissions = async () => (await api.get("/api/users/permissions/")).data.results;
 // export const getGroupPermissions = async (groupId: number) => (await api.get(`/api/users/groups/${groupId}/permissions/`)).data;
 // export const assignUsersToGroup = async (groupId: number, users: number[]) => (await api.post(`/api/users/groups/${groupId}/users/`, { users })).data;

@@ -224,17 +224,6 @@ export default function FleetOperatorDetailPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-amber-50 to-amber-100">
-          <CardContent className="p-4 flex items-center gap-3">
-            <Shield className="w-6 h-6 text-amber-600 flex-shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="text-2xl font-bold text-amber-700">
-                {operator.metadata?.max_vehicles || "N/A"}
-              </p>
-              <p className="text-xs text-gray-600">Max Vehicles</p>
-            </div>
-          </CardContent>
-        </Card>
 
         <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100">
           <CardContent className="p-4 flex items-center gap-3">
@@ -479,69 +468,31 @@ export default function FleetOperatorDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {operator.metadata?.alert_email && (
-                <div className="flex items-center gap-3">
-                  <Bell className="w-4 h-4 text-black" />
-                  <div>
-                    <p className="text-xs text-gray-500">Alert Email</p>
-                    <p className="font-semibold">
-                      <a
-                        href={`mailto:${operator.metadata.alert_email}`}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {operator.metadata.alert_email}
-                      </a>
-                    </p>
+              {operator.metadata && Object.keys(operator.metadata).length > 0 ? (
+                Object.entries(operator.metadata).map(([key, value]) => (
+                  <div key={key} className="flex items-center gap-3">
+                    <Settings className="w-4 h-4 text-black" />
+                    <div>
+                      <p className="text-xs text-gray-500 capitalize">
+                        {key.replace(/_/g, ' ')}
+                      </p>
+                      <p className="font-semibold">
+                        {typeof value === 'string' && value.includes('@') ? (
+                          <a
+                            href={`mailto:${value}`}
+                            className="text-blue-600 hover:underline"
+                          >
+                            {value}
+                          </a>
+                        ) : (
+                          String(value)
+                        )}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              )}
-              {operator.metadata?.maintenance_schedule && (
-                <div className="flex items-center gap-3">
-                  <Settings className="w-4 h-4 text-black" />
-                  <div>
-                    <p className="text-xs text-gray-500">
-                      Maintenance Schedule
-                    </p>
-                    <p className="font-semibold">
-                      {operator.metadata.maintenance_schedule}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {operator.metadata?.geofence_radius_meters && (
-                <div className="flex items-center gap-3">
-                  <MapPin className="w-4 h-4 text-black" />
-                  <div>
-                    <p className="text-xs text-gray-500">
-                      Geofence Radius (meters)
-                    </p>
-                    <p className="font-semibold">
-                      {operator.metadata.geofence_radius_meters}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {operator.metadata?.subscription_tier && (
-                <div className="flex items-center gap-3">
-                  <Shield className="w-4 h-4 text-black" />
-                  <div>
-                    <p className="text-xs text-gray-500">Subscription Tier</p>
-                    <p className="font-semibold capitalize">
-                      {operator.metadata.subscription_tier}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {operator.metadata?.max_vehicles && (
-                <div className="flex items-center gap-3">
-                  <Users className="w-4 h-4 text-black" />
-                  <div>
-                    <p className="text-xs text-gray-500">Max Vehicles</p>
-                    <p className="font-semibold">
-                      {operator.metadata.max_vehicles}
-                    </p>
-                  </div>
-                </div>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500 italic">No metadata available</p>
               )}
             </CardContent>
           </Card>

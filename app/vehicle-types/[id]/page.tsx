@@ -76,7 +76,7 @@ export default function VehicleTypeDetailPage() {
   }
 
   return (
-    <div className="mx-auto px-4 py-4 max-w-5xl space-y-6">
+    <div className="mx-auto px-4 py-4 max-w-7xl space-y-6">
       {/* Header */}
       <div className="space-y-4">
         {/* Back */}
