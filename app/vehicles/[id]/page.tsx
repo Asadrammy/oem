@@ -121,7 +121,7 @@ export default function VehicleDetailsPage() {
               <span>Refresh</span>
             </Button>
 
-            <Link href={`/fleet-operators/edit/${vehicle.id}`}>
+            <Link href={`/vehicles/edit/${vehicle.id}`}>
               <Button className="bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2 px-4 py-2">
                 <Edit className="w-4 h-4" />
                 <span>Edit Vehicle</span>

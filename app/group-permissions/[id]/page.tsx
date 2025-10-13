@@ -685,7 +685,7 @@ const handleUpdateSubmit = async () => {
                       <SelectValue placeholder="All Apps" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Apps</SelectItem>
+                      <SelectItem value="all">All Apps</SelectItem>
                       {Array.from(new Set(permissions.map(p => p.content_type_app))).map(app => (
                         <SelectItem key={app} value={app}>{app}</SelectItem>
                       ))}
@@ -696,7 +696,7 @@ const handleUpdateSubmit = async () => {
                       <SelectValue placeholder="All Models" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Models</SelectItem>
+                      <SelectItem value="all">All Models</SelectItem>
                       {selectedApp && Array.from(new Set(
                         permissions
                           .filter(p => p.content_type_app === selectedApp)
@@ -744,8 +744,8 @@ const handleUpdateSubmit = async () => {
                             const matchesSearch = !permissionSearch || 
                               permission.name.toLowerCase().includes(permissionSearch.toLowerCase()) ||
                               permission.codename.toLowerCase().includes(permissionSearch.toLowerCase());
-                            const matchesApp = !selectedApp || permission.content_type_app === selectedApp;
-                            const matchesModel = !selectedModel || permission.content_type_model === selectedModel;
+                            const matchesApp = !selectedApp || selectedApp === "all" || permission.content_type_app === selectedApp;
+                            const matchesModel = !selectedModel || selectedModel === "all" || permission.content_type_model === selectedModel;
                             return matchesSearch && matchesApp && matchesModel;
                           });
 
@@ -815,8 +815,8 @@ const handleUpdateSubmit = async () => {
                         const matchesSearch = !permissionSearch || 
                           permission.name.toLowerCase().includes(permissionSearch.toLowerCase()) ||
                           permission.codename.toLowerCase().includes(permissionSearch.toLowerCase());
-                        const matchesApp = !selectedApp || permission.content_type_app === selectedApp;
-                        const matchesModel = !selectedModel || permission.content_type_model === selectedModel;
+                        const matchesApp = !selectedApp || selectedApp === "all" || permission.content_type_app === selectedApp;
+                        const matchesModel = !selectedModel || selectedModel === "all" || permission.content_type_model === selectedModel;
                         return matchesSearch && matchesApp && matchesModel;
                       });
                       const filteredTotalPages = Math.ceil(filteredPermissions.length / rowsPerPage);

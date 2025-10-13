@@ -43,7 +43,7 @@ export default function AddUserPage() {
   const [state, setState] = useState("");
   const [pin, setPin] = useState("");
   const [address, setAddress] = useState("");
-  const [role, setRole] = useState("FLEET_USER");
+  const [role, setRole] = useState("");
   const [preferredTheme, setPreferredTheme] = useState("light");
   const [fleetOperator, setFleetOperator] = useState<number | null>(null);
 
@@ -58,6 +58,10 @@ export default function AddUserPage() {
           listFleetOperators(1),
           getUserGroups()
         ]);
+        
+        console.log("Fleet operators loaded:", operatorsResp);
+        console.log("User groups loaded:", groupsResp);
+        
         setFleetOperators(operatorsResp.results || []);
         setUserGroups(groupsResp || []);
       } catch (e) {
@@ -70,6 +74,34 @@ export default function AddUserPage() {
 const onSubmit = async () => {
   setErr("");
 
+  // Basic validation
+  if (!username.trim()) {
+    toast({
+      title: "Error",
+      description: "Username is required",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  if (!email.trim()) {
+    toast({
+      title: "Error",
+      description: "Email is required",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  if (!password.trim()) {
+    toast({
+      title: "Error",
+      description: "Password is required",
+      variant: "destructive",
+    });
+    return;
+  }
+
   if (password !== confirmPassword) {
     toast({
       title: "Error",
@@ -81,6 +113,18 @@ const onSubmit = async () => {
 
   setSubmitting(true);
   try {
+    // Only include profile fields that have values
+    const profileData: any = {};
+    
+    if (phoneNumber.trim()) profileData.phone_number = phoneNumber;
+    if (city.trim()) profileData.city = city;
+    if (state.trim()) profileData.state = state;
+    if (pin.trim()) profileData.pin = pin;
+    if (address.trim()) profileData.address = address;
+    if (role) profileData.role = role;
+    if (preferredTheme) profileData.preferred_theme = preferredTheme;
+    if (fleetOperator) profileData.fleet_operator = fleetOperator;
+
     const payload = {
       username,
       email,
@@ -89,16 +133,7 @@ const onSubmit = async () => {
       first_name: firstName,
       last_name: lastName,
       is_active: isActive,
-      profile: {
-        phone_number: phoneNumber,
-        city,
-        state,
-        pin,
-        address,
-        role,
-        preferred_theme: preferredTheme,
-        fleet_operator: fleetOperator, // dropdown selected ID
-      },
+      profile: profileData,
     };
 
     await createUser(payload);
@@ -111,11 +146,24 @@ const onSubmit = async () => {
 
     router.push("/user");
   } catch (e: any) {
+    console.error("Create user error:", e);
+    console.error("Error response:", e?.response?.data);
+    console.error("Error status:", e?.response?.status);
+    console.error("Payload sent:", payload);
+    
+    const errorMessage = e?.response?.data?.message || 
+                        e?.response?.data?.error || 
+                        e?.response?.data?.detail ||
+                        e?.response?.data?.non_field_errors?.[0] ||
+                        e?.message || 
+                        "Failed to create user";
+    
     toast({
       title: "Error",
-      description: e.message || "Failed to create user",
+      description: errorMessage,
       variant: "destructive",
     });
+    setErr(errorMessage);
   } finally {
     setSubmitting(false);
   }

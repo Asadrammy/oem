@@ -18,16 +18,52 @@ let api: AxiosInstance = axios.create({
 export const setApiBaseUrl = (company: string) => {
   const url = getApiUrl(company);
   api.defaults.baseURL = url;
+  
+  // Store company name in localStorage for restoration after refresh
+  if (typeof window !== "undefined") {
+    localStorage.setItem("api_company", company);
+  }
+  
   console.log("🌐 API Base URL set to:", url);
+};
+
+// ----------------- Restore API base URL from localStorage -----------------
+export const restoreApiBaseUrl = () => {
+  if (typeof window === "undefined") return;
+  
+  const storedCompany = localStorage.getItem("api_company");
+  if (storedCompany) {
+    const url = getApiUrl(storedCompany);
+    api.defaults.baseURL = url;
+    console.log("🌐 API Base URL restored to:", url);
+  }
 };
 // ----------------- Request interceptor -----------------
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("access_token")
-        : null;
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+    if (typeof window !== "undefined") {
+      // Try to get token from user object first, then fallback to access_token
+      const userStr = localStorage.getItem("user");
+      let token = null;
+      
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          token = user?.token;
+        } catch (e) {
+          console.error("Error parsing user from localStorage:", e);
+        }
+      }
+      
+      // Fallback to direct access_token if user object doesn't have token
+      if (!token) {
+        token = localStorage.getItem("access_token");
+      }
+      
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
     return config;
   },
   (error) => Promise.reject(error)
@@ -78,10 +114,26 @@ export const login = async (username: string, password: string) => {
 };
 
 export const refreshAccessToken = async (): Promise<string | null> => {
-  const refreshToken =
-    typeof window !== "undefined"
-      ? localStorage.getItem("refresh_token")
-      : null;
+  if (typeof window === "undefined") return null;
+  
+  // Try to get refresh token from user object first, then fallback to direct storage
+  const userStr = localStorage.getItem("user");
+  let refreshToken = null;
+  
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      refreshToken = user?.refresh_token;
+    } catch (e) {
+      console.error("Error parsing user from localStorage:", e);
+    }
+  }
+  
+  // Fallback to direct refresh_token if user object doesn't have it
+  if (!refreshToken) {
+    refreshToken = localStorage.getItem("refresh_token");
+  }
+  
   if (!refreshToken) return null;
 
   try {
@@ -93,8 +145,23 @@ export const refreshAccessToken = async (): Promise<string | null> => {
       }
     );
     const newToken = res.data.access;
-    if (typeof window !== "undefined")
+    
+    if (typeof window !== "undefined") {
+      // Update both storage methods for compatibility
       localStorage.setItem("access_token", newToken);
+      
+      // Also update the user object if it exists
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          user.token = newToken;
+          localStorage.setItem("user", JSON.stringify(user));
+        } catch (e) {
+          console.error("Error updating user token:", e);
+        }
+      }
+    }
+    
     return newToken;
   } catch {
     return null;
@@ -162,6 +229,11 @@ export const getMyProfile = async () => {
   return res.data;
 };
 
+export const updateUserProfile = async (userId: number, profileData: any) => {
+  const res = await api.patch(`/api/users/users/${userId}/profile/`, profileData);
+  return res.data;
+};
+
 export const listUsers = async (params: {
   page?: number;
   page_size?: number;
@@ -182,8 +254,20 @@ export const listUsers = async (params: {
   return res.data;
 };
 export const createUser = async (payload: any) => {
-  const res = await api.post("/api/users/users/", payload);
-  return res.data;
+  console.log("Creating user with payload:", payload);
+  console.log("API URL: POST /api/users/users/");
+  
+  try {
+    const res = await api.post("/api/users/users/", payload);
+    console.log("User creation successful:", res.data);
+    return res.data;
+  } catch (error) {
+    console.error("Create user API error:", error);
+    console.error("Error response:", error?.response?.data);
+    console.error("Error status:", error?.response?.status);
+    console.error("Error URL:", error?.config?.url);
+    throw error;
+  }
 };
 
 export const getUserPermissions = async (userId: number) => {
@@ -198,12 +282,48 @@ export const updateUserPermissions = async (userId: number, permissions: number[
   return res.data;
 };
 export const updateUser = async (id: number, payload: any) => {
-  const res = await api.put(`/api/users/users/${id}/`, payload);
-  return res.data;
+  console.log(`Attempting to update user ${id} with payload:`, payload);
+  console.log(`API URL: PUT /api/users/users/${id}/`);
+  
+  try {
+    // Try PUT first
+    const res = await api.put(`/api/users/users/${id}/`, payload);
+    console.log("Update successful with PUT:", res.data);
+    return res.data;
+  } catch (error) {
+    console.error("PUT failed, trying PATCH:", error?.response?.status);
+    
+    // If PUT fails with 404, try PATCH
+    if (error?.response?.status === 404) {
+      try {
+        const res = await api.patch(`/api/users/users/${id}/`, payload);
+        console.log("Update successful with PATCH:", res.data);
+        return res.data;
+      } catch (patchError) {
+        console.error("PATCH also failed:", patchError);
+        throw patchError;
+      }
+    }
+    
+    console.error("Update user API error:", error);
+    console.error("Error response:", error?.response?.data);
+    console.error("Error status:", error?.response?.status);
+    console.error("Error URL:", error?.config?.url);
+    throw error;
+  }
 };
 export const getUser = async (id: number) => {
-  const res = await api.get(`/api/users/users/${id}/`);
-  return res.data;
+  console.log(`Fetching user ${id} from: GET /api/users/users/${id}/`);
+  try {
+    const res = await api.get(`/api/users/users/${id}/`);
+    console.log("User fetch successful:", res.data);
+    return res.data;
+  } catch (error) {
+    console.error("Get user API error:", error);
+    console.error("Error response:", error?.response?.data);
+    console.error("Error status:", error?.response?.status);
+    throw error;
+  }
 };
 export const deleteUser = async (id: number) => {
   const res = await api.delete(`/api/users/users/${id}/`);

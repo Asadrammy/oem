@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { logout } from "@/lib/api";
+import { useAuth } from "@/app/context/auth-context";
 
 export default function ClientLayout({
   children,
@@ -11,14 +11,11 @@ export default function ClientLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { user, logout } = useAuth();
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-
-    // Only redirect to /login if token is missing and not already on /login
-    if (!token && pathname !== "/login") {
-      router.replace("/login");
-    }
+    // Only run on client side
+    if (typeof window === 'undefined') return;
 
     const handleUnauthorized = () => {
       logout();
@@ -27,12 +24,8 @@ export default function ClientLayout({
 
     window.addEventListener("unauthorized", handleUnauthorized);
     return () => window.removeEventListener("unauthorized", handleUnauthorized);
-  }, [pathname, router]);
+  }, [logout, router]);
 
-  useEffect(() => {
-    // On every browser refresh, redirect to /login
-    router.replace("/login");
-  }, [router]);
 
   return <>{children}</>;
 }

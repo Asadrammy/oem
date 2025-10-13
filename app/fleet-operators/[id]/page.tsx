@@ -9,6 +9,9 @@ import {
   updateFleetOperatorLogo,
 } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { MetadataDisplay } from "@/components/ui/metadata-display";
+import { AdvancedMetadataDisplay } from "@/components/ui/advanced-metadata-display";
 import {
   Building,
   Barcode,
@@ -33,6 +36,7 @@ import {
   Trash2,
   Currency,
   X,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -348,17 +352,18 @@ export default function FleetOperatorDetailPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 pt-4 border-t">
-                <Clock className="w-4 h-4 text-gray-600" />
-                <div>
-                  <p className="text-xs text-gray-500">Created At</p>
-                  <p className="font-semibold">
-                    {new Date(operator.created_at).toLocaleString()}
-                  </p>
-                </div>
-              </div>
             </CardContent>
           </Card>
+
+          {/* Enhanced Metadata Section - Moved from sidebar */}
+          <div className="mt-6">
+            <AdvancedMetadataDisplay 
+              metadata={operator.metadata} 
+              title="Metadata"
+              showCount={true}
+              createdAt={new Date(operator.created_at).toLocaleString()}
+            />
+          </div>
         </div>
 
         {/* Side Sections */}
@@ -459,43 +464,6 @@ export default function FleetOperatorDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Metadata Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="w-5 h-5 text-black" />
-                Metadata
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {operator.metadata && Object.keys(operator.metadata).length > 0 ? (
-                Object.entries(operator.metadata).map(([key, value]) => (
-                  <div key={key} className="flex items-center gap-3">
-                    <Settings className="w-4 h-4 text-black" />
-                    <div>
-                      <p className="text-xs text-gray-500 capitalize">
-                        {key.replace(/_/g, ' ')}
-                      </p>
-                      <p className="font-semibold">
-                        {typeof value === 'string' && value.includes('@') ? (
-                          <a
-                            href={`mailto:${value}`}
-                            className="text-blue-600 hover:underline"
-                          >
-                            {value}
-                          </a>
-                        ) : (
-                          String(value)
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500 italic">No metadata available</p>
-              )}
-            </CardContent>
-          </Card>
         </div>
       </div>
 

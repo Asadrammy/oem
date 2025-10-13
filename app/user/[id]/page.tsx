@@ -239,8 +239,8 @@ export default function UserDetailPage() {
         page: catalogPage,
         page_size: 20,
         search: catalogSearch || undefined,
-        app_label: catalogApp || undefined,
-        model: catalogModel || undefined,
+        app_label: catalogApp && catalogApp !== "all" ? catalogApp : undefined,
+        model: catalogModel && catalogModel !== "all" ? catalogModel : undefined,
       });
       
       setAvailablePermissions(data?.results || data || []);
@@ -730,7 +730,7 @@ export default function UserDetailPage() {
                       <SelectValue placeholder="All Apps" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Apps</SelectItem>
+                      <SelectItem value="all">All Apps</SelectItem>
                       {userPermissions?.all_permissions && Array.from(new Set(userPermissions.all_permissions.map(p => p.content_type_app))).map(app => (
                         <SelectItem key={app} value={app}>{app}</SelectItem>
                       ))}
@@ -741,7 +741,7 @@ export default function UserDetailPage() {
                       <SelectValue placeholder="All Models" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Models</SelectItem>
+                      <SelectItem value="all">All Models</SelectItem>
                       {userPermissions?.all_permissions && selectedApp && Array.from(new Set(
                         userPermissions.all_permissions
                           .filter(p => p.content_type_app === selectedApp)
@@ -789,8 +789,8 @@ export default function UserDetailPage() {
                           const matchesSearch = !permissionSearch || 
                             permission.name.toLowerCase().includes(permissionSearch.toLowerCase()) ||
                             permission.codename.toLowerCase().includes(permissionSearch.toLowerCase());
-                          const matchesApp = !selectedApp || permission.content_type_app === selectedApp;
-                          const matchesModel = !selectedModel || permission.content_type_model === selectedModel;
+                          const matchesApp = !selectedApp || selectedApp === "all" || permission.content_type_app === selectedApp;
+                          const matchesModel = !selectedModel || selectedModel === "all" || permission.content_type_model === selectedModel;
                           return matchesSearch && matchesApp && matchesModel;
                         })
                         ?.map((permission) => {
@@ -923,7 +923,7 @@ export default function UserDetailPage() {
                   <SelectValue placeholder="All Apps" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Apps</SelectItem>
+                  <SelectItem value="all">All Apps</SelectItem>
                   {availablePermissions && Array.from(new Set(availablePermissions.map(p => p.content_type_app))).map(app => (
                     <SelectItem key={app} value={app}>{app}</SelectItem>
                   ))}
@@ -934,8 +934,8 @@ export default function UserDetailPage() {
                   <SelectValue placeholder="All Models" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Models</SelectItem>
-                  {catalogApp && availablePermissions && Array.from(new Set(
+                  <SelectItem value="all">All Models</SelectItem>
+                  {catalogApp && catalogApp !== "all" && availablePermissions && Array.from(new Set(
                     availablePermissions
                       .filter(p => p.content_type_app === catalogApp)
                       .map(p => p.content_type_model)

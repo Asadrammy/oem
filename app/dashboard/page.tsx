@@ -764,43 +764,67 @@ export default function Dashboard() {
   const [firmwareUpdates, setFirmwareUpdates] = useState<any[]>([]);
   const [vehiclesCount, setVehiclesCount] = useState<number>(0);
 
+  // Loading states for individual components
+  const [vehiclesLoading, setVehiclesLoading] = useState(true);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [telemetryLoading, setTelemetryLoading] = useState(true);
+
   useEffect(() => setMounted(true), []);
 
-  // Vehicles
+  // Vehicles - Load first as it's most important
   useEffect(() => {
     if (!mounted) return;
     async function fetchVehicles() {
       try {
+        setVehiclesLoading(true);
+        console.log("🚗 Fetching vehicles...");
         const data = await listVehicles();
+        console.log("🚗 Vehicles data:", data);
         setVehicles(data.results || []);
         setVehiclesCount(data.count ?? data.results?.length ?? 0);
       } catch (err) {
         console.error("Failed to load vehicles", err);
+        console.error("Error details:", err?.response?.data);
+        console.error("Error status:", err?.response?.status);
+      } finally {
+        setVehiclesLoading(false);
       }
     }
     fetchVehicles();
   }, [mounted]);
 
-  // Summary, alerts, firmware
+  // Summary data - Load after vehicles with parallel requests
   useEffect(() => {
     if (!mounted) return;
-    async function fetchData() {
+    async function fetchSummaryData() {
       try {
-        setSummary(await dashboardSummary());
-        const a = await alerts();
-        setAlertsData(a.results || []);
-        const f = await listFirmwareUpdates();
-        setFirmwareUpdates(f.results || []);
+        setSummaryLoading(true);
+        console.log("📊 Fetching summary data...");
+        const [summaryData, alertsData, firmwareData] = await Promise.all([
+          dashboardSummary(),
+          alerts(),
+          listFirmwareUpdates()
+        ]);
+        
+        console.log("📊 Summary data:", summaryData);
+        setSummary(summaryData);
+        setAlertsData(alertsData.results || []);
+        setFirmwareUpdates(firmwareData.results || []);
       } catch (err) {
-        console.error(err);
+        console.error("Failed to load summary data", err);
+        console.error("Error details:", err?.response?.data);
+        console.error("Error status:", err?.response?.status);
+      } finally {
+        setSummaryLoading(false);
       }
     }
-    fetchData();
+    fetchSummaryData();
   }, [mounted]);
 
   // Fleet-aggregated telemetry polling (build time-series from averages)
   const fetchTelemetry = async () => {
     try {
+      setTelemetryLoading(true);
       const data: AggregatedTelemetryResponse = await getVehicleTelementry();
       setAgg(data);
 
@@ -832,13 +856,37 @@ export default function Dashboard() {
       setSeries((prev) => [...prev.slice(-99), point]);
     } catch (err) {
       console.error("Failed to fetch aggregated telemetry", err);
+    } finally {
+      setTelemetryLoading(false);
     }
   };
 
+  // Telemetry polling - reduced frequency and only when page is visible
   useEffect(() => {
+    if (!mounted) return;
+    
+    // Initial fetch
     fetchTelemetry();
-    const interval = setInterval(fetchTelemetry, 50000);
-    return () => clearInterval(interval);
+    
+    // Reduced polling interval from 50s to 2 minutes
+    const interval = setInterval(fetchTelemetry, 120000);
+    
+    // Pause polling when page is not visible
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearInterval(interval);
+      } else {
+        fetchTelemetry(); // Fetch immediately when page becomes visible
+        setInterval(fetchTelemetry, 120000);
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [mounted]);
 
   if (!mounted)
@@ -846,7 +894,7 @@ export default function Dashboard() {
       <div className="flex-1 flex items-center justify-center h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading Dashboard...</p>
+          <p className="text-gray-600">Initializing Dashboard...</p>
         </div>
       </div>
     );
@@ -939,44 +987,55 @@ export default function Dashboard() {
                 <CardTitle className="text-lg font-semibold">Fleet Summary</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-2 md:grid-cols-2 gap-4">
-                <div className="p-4 bg-gradient-to-br from-indigo-100 to-indigo-200 rounded-xl flex items-center gap-3">
-                  <Car className="w-6 h-6 text-indigo-600 flex-shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-gray-600">Total Vehicles</p>
-                    <p className="text-xl font-bold">{summary?.total_vehicles ?? "—"}</p>
+                {summaryLoading ? (
+                  <div className="col-span-2 flex items-center justify-center py-8">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                      <p className="text-gray-500">Loading fleet summary...</p>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="p-4 bg-gradient-to-br from-indigo-100 to-indigo-200 rounded-xl flex items-center gap-3">
+                      <Car className="w-6 h-6 text-indigo-600 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-gray-600">Total Vehicles</p>
+                        <p className="text-xl font-bold">{summary?.total_vehicles ?? "—"}</p>
+                      </div>
+                    </div>
 
-                <div className="p-4 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center gap-3">
-                  <Wifi className="w-6 h-6 text-green-600 flex-shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-gray-600">Online Vehicles</p>
-                    <p className="text-xl font-bold">{summary?.online_vehicles ?? "—"}</p>
-                    <p className="text-xs text-gray-500">
-                      {summary &&
-                        summary.total_vehicles > 0 &&
-                        ((summary.online_vehicles / summary.total_vehicles) * 100).toFixed(0)}
-                      % of fleet
-                    </p>
-                  </div>
-                </div>
+                    <div className="p-4 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center gap-3">
+                      <Wifi className="w-6 h-6 text-green-600 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-gray-600">Online Vehicles</p>
+                        <p className="text-xl font-bold">{summary?.online_vehicles ?? "—"}</p>
+                        <p className="text-xs text-gray-500">
+                          {summary &&
+                            summary.total_vehicles > 0 &&
+                            ((summary.online_vehicles / summary.total_vehicles) * 100).toFixed(0)}
+                          % of fleet
+                        </p>
+                      </div>
+                    </div>
 
-                <div className="p-4 bg-gradient-to-br from-rose-100 to-rose-200 rounded-xl flex items-center gap-3">
-                  <AlertTriangle className="w-6 h-6 text-rose-600 flex-shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-gray-600">Critical Alerts</p>
-                    <p className="text-xl font-bold">{summary?.critical_alerts ?? "—"}</p>
-                  </div>
-                </div>
+                    <div className="p-4 bg-gradient-to-br from-rose-100 to-rose-200 rounded-xl flex items-center gap-3">
+                      <AlertTriangle className="w-6 h-6 text-rose-600 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-gray-600">Critical Alerts</p>
+                        <p className="text-xl font-bold">{summary?.critical_alerts ?? "—"}</p>
+                      </div>
+                    </div>
 
-                <div className="p-4 bg-gradient-to-br from-yellow-100 to-yellow-200 rounded-xl flex items-center gap-3">
-                  <Navigation className="w-6 h-6 text-yellow-600 flex-shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-gray-600">Active Trips</p>
-                    <p className="text-xl font-bold">{summary?.total_active_trips ?? "—"}</p>
-                    <p className="text-xs text-gray-500">{summary?.total_distance_travelled_km ?? "—"} km today</p>
-                  </div>
-                </div>
+                    <div className="p-4 bg-gradient-to-br from-yellow-100 to-yellow-200 rounded-xl flex items-center gap-3">
+                      <Navigation className="w-6 h-6 text-yellow-600 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-gray-600">Active Trips</p>
+                        <p className="text-xl font-bold">{summary?.total_active_trips ?? "—"}</p>
+                        <p className="text-xs text-gray-500">{summary?.total_distance_travelled_km ?? "—"} km today</p>
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -986,7 +1045,12 @@ export default function Dashboard() {
                 <CardTitle>Vehicle Status</CardTitle>
               </CardHeader>
               <CardContent className="h-72 flex items-center justify-center">
-                {vehicleStatusData.length > 0 && vehicleStatusData.some((item) => item.value > 0) ? (
+                {summaryLoading ? (
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-gray-500">Loading vehicle status...</p>
+                  </div>
+                ) : vehicleStatusData.length > 0 && vehicleStatusData.some((item) => item.value > 0) ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -1006,7 +1070,7 @@ export default function Dashboard() {
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <p className="text-gray-500">Loading…</p>
+                  <p className="text-gray-500">No vehicle status data available</p>
                 )}
               </CardContent>
             </Card>

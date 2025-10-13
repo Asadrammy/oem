@@ -88,6 +88,7 @@ import {
 import { useAuth } from "@/app/context/auth-context";
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
+import Link from "next/link";
 
 interface HeaderProps {
   title: string;
@@ -119,13 +120,15 @@ export function Header({ title, subtitle, notifications = 0 }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" className="relative">
-          <Bell className="w-4 h-4" />
-          {notifications > 0 && (
-            <Badge className="absolute -top-1 -right-1 w-5 h-5 text-xs p-0 flex items-center justify-center">
-              {notifications}
-            </Badge>
-          )}
+        <Button variant="ghost" size="sm" className="relative" asChild>
+          <Link href="/all-alerts">
+            <Bell className="w-4 h-4" />
+            {notifications > 0 && (
+              <Badge className="absolute -top-1 -right-1 w-5 h-5 text-xs p-0 flex items-center justify-center">
+                {notifications}
+              </Badge>
+            )}
+          </Link>
         </Button>
 
         {user && (

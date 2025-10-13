@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator"
 import { Bell, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
 
 export default function OTALayout({
   children,
@@ -26,9 +27,11 @@ export default function OTALayout({
             <p className="text-sm text-gray-500">Manage firmware updates</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="relative">
-              <Bell className="w-4 h-4" />
-              <Badge className="absolute -top-1 -right-1 w-5 h-5 text-xs p-0 flex items-center justify-center">3</Badge>
+            <Button variant="ghost" size="sm" className="relative" asChild>
+              <Link href="/all-alerts">
+                <Bell className="w-4 h-4" />
+                <Badge className="absolute -top-1 -right-1 w-5 h-5 text-xs p-0 flex items-center justify-center">3</Badge>
+              </Link>
             </Button>
             <Button variant="ghost" size="sm">
               <Settings className="w-4 h-4" />

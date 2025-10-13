@@ -3,7 +3,7 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { refreshAccessToken } from "@/lib/api";
+import { useAuth } from "@/app/context/auth-context";
 
 function isTokenExpired(token: string): boolean {
   try {
@@ -20,48 +20,53 @@ function isTokenExpired(token: string): boolean {
 
 export default function AuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
+  const { user, logout, loading } = useAuth();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const token = localStorage.getItem("access_token");
-      
-      if (!token) {
-        localStorage.removeItem("refresh_token");
-        router.replace("/login");
-        return;
-      }
+    // Only check auth after loading is complete
+    if (loading) return;
+    
+    // Only run on client side to avoid hydration issues
+    if (typeof window === 'undefined') return;
+    
+    if (!user || !user.token) {
+      router.replace("/login");
+      return;
+    }
 
-      if (isTokenExpired(token)) {
-        // Try to refresh the token
-        try {
-          const newToken = await refreshAccessToken();
-          if (newToken) {
-            setReady(true);
-            return;
-          }
-        } catch (error) {
-          console.error("Token refresh failed:", error);
-        }
-        
-        // If refresh fails, redirect to login
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        router.replace("/login");
-      } else {
-        setReady(true);
-      }
-    };
+    if (isTokenExpired(user.token)) {
+      // Token is expired, logout and redirect to login
+      logout();
+      router.replace("/login");
+    }
+  }, [user, logout, router, loading]);
 
-    checkAuth();
-  }, [router]);
-
-  if (!ready) {
+  // Show loading while checking authentication
+  if (loading) {
     return (
       <div className="min-h-screen grid place-items-center">
-        <div className="animate-pulse text-gray-600">Checking authentication…</div>
+        <div className="animate-pulse text-gray-600">Loading...</div>
       </div>
     );
   }
+
+  // If no user or no token, show loading (will redirect)
+  if (!user || !user.token) {
+    return (
+      <div className="min-h-screen grid place-items-center">
+        <div className="animate-pulse text-gray-600">Redirecting to login...</div>
+      </div>
+    );
+  }
+
+  // If token is expired, show loading (will redirect)
+  if (isTokenExpired(user.token)) {
+    return (
+      <div className="min-h-screen grid place-items-center">
+        <div className="animate-pulse text-gray-600">Session expired, redirecting...</div>
+      </div>
+    );
+  }
+
   return <>{children}</>;
 }

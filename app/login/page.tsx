@@ -53,7 +53,11 @@ export default function LoginPage() {
       const loginResp = await loginApi(username, password);
 
       if (loginResp.access_token) {
-        login({ username, token: loginResp.access_token });
+        login({ 
+          username, 
+          token: loginResp.access_token,
+          refresh_token: loginResp.refresh_token 
+        });
         router.push("/dashboard");
       } else {
         setError("Invalid username or password");

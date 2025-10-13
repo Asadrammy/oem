@@ -20,13 +20,13 @@ import { getVehicleHistory } from "@/lib/api";
 
 // UI keys -> API series keys
 const SERIES: Record<string, { key: string; label: string; color: string }> = {
-  motor_temperature: { key: "motor_temp_c", label: "Motor Temp (°C)", color: "#3b82f6" },
+  motor_temperature: { key: "motor_temp_c", label: "Motor Temp", color: "#3b82f6" },
   battery_level: { key: "battery_level_percent", label: "Battery %", color: "#16a34a" },
-  speed: { key: "speed_kph", label: "Speed (km/h)", color: "#f97316" },
-  range: { key: "range_km", label: "Range (km)", color: "#8b5cf6" },
-  power: { key: "battery_power_kw", label: "Power (kW)", color: "#06b6d4" },
-  tire_pressure: { key: "tire_pressure_kpa", label: "Tire Pressure (kPa)", color: "#ef4444" },
-  torque: { key: "torque_nm", label: "Torque (Nm)", color: "#eab308" },
+  speed: { key: "speed_kph", label: "Speed", color: "#f97316" },
+  range: { key: "range_km", label: "Range", color: "#8b5cf6" },
+  power: { key: "battery_power_kw", label: "Power", color: "#06b6d4" },
+  tire_pressure: { key: "tire_pressure_kpa", label: "Tire Pressure", color: "#ef4444" },
+  torque: { key: "torque_nm", label: "Torque", color: "#eab308" },
 };
 
 type HistoryResponse = {
@@ -57,7 +57,7 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
   const [includeDetails, setIncludeDetails] = useState<boolean>(false);
   const [includeRaw, setIncludeRaw] = useState<boolean>(false);
   const [category, setCategory] = useState<string>("");
-  const [visualization, setVisualization] = useState<string[]>(Object.keys(SERIES));
+  const [visualization, setVisualization] = useState<string[]>([]);
 
   const [data, setData] = useState<HistoryResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -78,8 +78,15 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
     const cat = get("category");
     setCategory(cat || "");
     const vis = searchParams.getAll("visualization");
-    setVisualization(vis && vis.length ? vis.filter((k) => Object.keys(SERIES).includes(k)) : Object.keys(SERIES));
+    setVisualization(vis && vis.length ? vis.filter((k) => Object.keys(SERIES).includes(k)) : []);
   }, [searchParams]); // useSearchParams per App Router docs
+
+  // Set default selection if none is selected
+  useEffect(() => {
+    if (visualization.length === 0 && !category) {
+      setVisualization(["battery_level"]);
+    }
+  }, [visualization, category]);
 
   // Compose API params
   const currentParams = useMemo(() => {
@@ -130,11 +137,12 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
 
   const onToggleSeries = (k: string) => {
     if (category) return;
-    setVisualization((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
+    // Only allow one selection at a time
+    setVisualization([k]);
   };
   const onShowAll = () => {
     setCategory("");
-    setVisualization(Object.keys(SERIES));
+    setVisualization([]);
   };
 
   return (
@@ -177,19 +185,20 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
             <Button variant="outline" onClick={applyFiltersToUrl}>
               Apply & Update URL
             </Button>
-            <Button onClick={onShowAll}>Show All</Button>
+            <Button onClick={onShowAll}>Clear Selection</Button>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1 max-w-full overflow-hidden">
             {Object.entries(SERIES).map(([k, v]) => (
-              <label
+              <Button
                 key={k}
-                className={`px-3 py-2 rounded border text-sm cursor-pointer ${
-                  seriesKeys.includes(k) ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 border-gray-200"
-                } ${category ? "opacity-50 cursor-not-allowed" : ""}`}
+                variant={seriesKeys.includes(k) ? "default" : "outline"}
+                size="sm"
+                onClick={() => onToggleSeries(k)}
+                disabled={!!category}
+                className={`text-xs px-2 py-1 h-6 min-w-0 flex-shrink-0 ${category ? "opacity-50 cursor-not-allowed" : ""}`}
               >
-                <input type="checkbox" className="hidden" disabled={!!category} checked={seriesKeys.includes(k)} onChange={() => onToggleSeries(k)} />
-                {v.label}
-              </label>
+                <span className="truncate">{v.label}</span>
+              </Button>
             ))}
           </div>
         </CardContent>
@@ -201,7 +210,12 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
         </CardHeader>
         <CardContent>
           {loading && <p className="text-sm text-gray-500">Loading…</p>}
-          {!loading && (!data?.time_series_charts || seriesKeys.length === 0) && <p className="text-sm text-gray-500">No telemetry to display</p>}
+          {!loading && (!data?.time_series_charts || seriesKeys.length === 0) && (
+            <div className="text-center py-8">
+              <p className="text-sm text-gray-500 mb-2">No telemetry to display</p>
+              <p className="text-xs text-gray-400">Select a metric above to view its analytics</p>
+            </div>
+          )}
           {!loading && data?.time_series_charts && seriesKeys.length > 0 && (
             <div className="w-full h-[360px]">
               <ResponsiveContainer width="100%" height="100%">

@@ -22,6 +22,9 @@ export default function EditUserPage() {
   const router = useRouter();
   const params = useParams();
   const userId = Number(params?.id);
+  
+  console.log("User ID from params:", params?.id);
+  console.log("Parsed user ID:", userId);
 
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -39,7 +42,7 @@ export default function EditUserPage() {
   const [state, setState] = useState("");
   const [pin, setPin] = useState("");
   const [address, setAddress] = useState("");
-  const [role, setRole] = useState("FLEET_USER");
+  const [role, setRole] = useState("");
   const [preferredTheme, setPreferredTheme] = useState("light");
   const [fleetOperator, setFleetOperator] = useState<number | null>(null);
 
@@ -56,6 +59,10 @@ export default function EditUserPage() {
           getUserGroups(),
         ]);
 
+        console.log("Loaded user data:", userResp);
+        console.log("Fleet operators:", opsResp);
+        console.log("User groups:", groupsResp);
+
         setUsername(userResp.username);
         setEmail(userResp.email);
         setFirstName(userResp.first_name || "");
@@ -68,7 +75,7 @@ export default function EditUserPage() {
           setState(userResp.profile.state || "");
           setPin(userResp.profile.pin || "");
           setAddress(userResp.profile.address || "");
-          setRole(userResp.profile.role || "FLEET_USER");
+          setRole(userResp.profile.role || "");
           setPreferredTheme(userResp.profile.preferred_theme || "light");
           setFleetOperator(userResp.profile.fleet_operator || null);
         }
@@ -86,28 +93,68 @@ export default function EditUserPage() {
 
   const onSubmit = async () => {
     setErr("");
+    
+    // Validate user ID
+    if (!userId || isNaN(userId)) {
+      toast({
+        title: "Error",
+        description: "Invalid user ID",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Basic validation
+    if (!username.trim()) {
+      toast({
+        title: "Error",
+        description: "Username is required",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!email.trim()) {
+      toast({
+        title: "Error", 
+        description: "Email is required",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setSubmitting(true);
 
-    const payload = {
+    const userPayload = {
       username,
       email,
       first_name: firstName,
       last_name: lastName,
       is_active: isActive,
-      profile: {
-        phone_number: phoneNumber,
-        city,
-        state,
-        pin,
-        address,
-        role,
-        preferred_theme: preferredTheme,
-        fleet_operator: fleetOperator,
-      },
     };
 
+    // Only include profile fields that have values
+    const profilePayload: any = {};
+    
+    if (phoneNumber.trim()) profilePayload.phone_number = phoneNumber;
+    if (city.trim()) profilePayload.city = city;
+    if (state.trim()) profilePayload.state = state;
+    if (pin.trim()) profilePayload.pin = pin;
+    if (address.trim()) profilePayload.address = address;
+    if (role) profilePayload.role = role;
+    if (preferredTheme) profilePayload.preferred_theme = preferredTheme;
+    // Temporarily comment out fleet_operator to test
+    // if (fleetOperator) profilePayload.fleet_operator = fleetOperator;
+
     try {
-      await updateUser(userId, payload);
+      // Send user and profile data together as the API expects
+      const combinedPayload = {
+        ...userPayload,
+        profile: profilePayload
+      };
+      
+      console.log("Sending payload to API:", combinedPayload);
+      await updateUser(userId, combinedPayload);
 
       toast({
         title: "Success",
@@ -117,11 +164,22 @@ export default function EditUserPage() {
 
       router.push("/user");
     } catch (e: any) {
+      console.error("Update user error:", e);
+      console.error("Error response:", e?.response?.data);
+      console.error("Combined payload sent:", combinedPayload);
+      
+      const errorMessage = e?.response?.data?.message || 
+                          e?.response?.data?.error || 
+                          e?.response?.data?.detail ||
+                          e?.message || 
+                          "Failed to update user";
+      
       toast({
         title: "Error",
-        description: e.message || "Failed to update user",
-        variant: "destructive", // red for error
+        description: errorMessage,
+        variant: "destructive",
       });
+      setErr(errorMessage);
     } finally {
       setSubmitting(false);
     }
