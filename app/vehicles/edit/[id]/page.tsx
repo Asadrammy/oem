@@ -115,8 +115,11 @@ export default function EditVehiclePage() {
       try {
         setLoading(true);
         const vehicledata = await getVehicleById(vehicleId);
-        const data = vehicledata?.vehicle;
-        console.log("data", data);
+        const data = vehicledata; // API returns data directly, not nested under 'vehicle'
+        console.log("Full API response:", vehicledata);
+        console.log("Vehicle data:", data);
+        console.log("Vehicle type from API:", data.vehicle_type);
+        console.log("Vehicle type ID from API:", data.vehicle_type_id);
 
         setVin(data.vin || "");
         setLicensePlate(data.license_plate || "");
@@ -187,7 +190,7 @@ export default function EditVehiclePage() {
     const payload = {
       vin,
       license_plate: licensePlate,
-      fleet_operator: fleetOperator,
+      fleet_operator: fleetOperator ? Number(fleetOperator) : undefined,
       vehicle_type: vehicleType ? Number(vehicleType) : undefined,
       make,
       model,
@@ -205,9 +208,13 @@ export default function EditVehiclePage() {
     };
 
     console.log("Update payload:", payload);
+    console.log("Vehicle ID:", vehicleId);
+    console.log("Vehicle Type value:", vehicleType);
+    console.log("Fleet Operator value:", fleetOperator);
 
     try {
-      await updateVehicle(vehicleId, payload);
+      const result = await updateVehicle(vehicleId, payload);
+      console.log("Update successful:", result);
 
       toast({
         title: "Success",
