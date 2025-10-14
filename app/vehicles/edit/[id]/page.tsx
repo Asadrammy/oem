@@ -115,14 +115,17 @@ export default function EditVehiclePage() {
       try {
         setLoading(true);
         const vehicledata = await getVehicleById(vehicleId);
-        const data = vehicledata; // API returns data directly, not nested under 'vehicle'
         console.log("Full API response:", vehicledata);
+        
+        // Check if data is nested under 'vehicle' key (like in detail page)
+        const data = vehicledata.vehicle || vehicledata; // Try both structures
         console.log("Vehicle data:", data);
         console.log("Vehicle type from API:", data.vehicle_type);
         console.log("Vehicle type ID from API:", data.vehicle_type_id);
         console.log("Fleet operator from API:", data.fleet_operator);
         console.log("Fleet operator type:", typeof data.fleet_operator);
         console.log("All vehicle fields:", Object.keys(data));
+        console.log("Data structure check - has 'vehicle' key:", 'vehicle' in vehicledata);
 
         setVin(data.vin || "");
         setLicensePlate(data.license_plate || "");
@@ -152,7 +155,17 @@ export default function EditVehiclePage() {
         setFuelType(data.fuel_type || "Electric");
         setTransmission(data.transmission_type || "Automatic");
         setEfficiency(data.efficiency_km_per_kwh?.toString() || "");
+        
+        // Debug: Check if any data was actually loaded
+        console.log("Data loading summary:", {
+          vin: data.vin,
+          license_plate: data.license_plate,
+          make: data.make,
+          model: data.model,
+          hasData: !!(data.vin || data.license_plate || data.make || data.model)
+        });
       } catch (e: any) {
+        console.error("Error loading vehicle data:", e);
         setErr("Failed to load vehicle data");
       } finally {
         setLoading(false);
@@ -274,6 +287,14 @@ export default function EditVehiclePage() {
     transmission,
     efficiency
   });
+  
+  // Check if we have any data loaded
+  const hasData = !!(vin || licensePlate || make || model);
+  console.log("Has form data:", hasData);
+  
+  if (!hasData && !loading) {
+    return <div className="p-6">No vehicle data found. Please check the console for details.</div>;
+  }
 
   return (
     <div className="space-y-6">
