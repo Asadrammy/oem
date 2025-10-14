@@ -121,7 +121,9 @@ export default function EditVehiclePage() {
         setVin(data.vin || "");
         setLicensePlate(data.license_plate || "");
         setVehicleType(
-          data.vehicle_type ? String(data.vehicle_type_id) : undefined
+          data.vehicle_type_id ? String(data.vehicle_type_id) : 
+          (typeof data.vehicle_type === 'object' && data.vehicle_type?.id) ? String(data.vehicle_type.id) :
+          data.vehicle_type ? String(data.vehicle_type) : undefined
         );
         setFleetOperator(data.fleet_operator);
         setMake(data.make || "");
@@ -151,6 +153,37 @@ export default function EditVehiclePage() {
     setErr("");
     setSubmitting(true);
 
+    // Basic validation
+    if (!vin.trim()) {
+      toast({
+        title: "Error",
+        description: "VIN is required",
+        variant: "destructive",
+      });
+      setSubmitting(false);
+      return;
+    }
+
+    if (!licensePlate.trim()) {
+      toast({
+        title: "Error", 
+        description: "License Plate is required",
+        variant: "destructive",
+      });
+      setSubmitting(false);
+      return;
+    }
+
+    if (!vehicleType) {
+      toast({
+        title: "Error",
+        description: "Vehicle Type is required", 
+        variant: "destructive",
+      });
+      setSubmitting(false);
+      return;
+    }
+
     const payload = {
       vin,
       license_plate: licensePlate,
@@ -159,8 +192,8 @@ export default function EditVehiclePage() {
       make,
       model,
       year: year ? Number(year) : undefined,
-      battery_capacity_kwh: parseFloat(batteryCapacity),
-      current_battery_level: parseFloat(currentBattery),
+      battery_capacity_kwh: batteryCapacity ? parseFloat(batteryCapacity) : undefined,
+      current_battery_level: currentBattery ? parseFloat(currentBattery) : undefined,
       mileage_km: mileage ? Number(mileage) : undefined,
       warranty_expiry_date: warranty,
       status,
@@ -168,8 +201,10 @@ export default function EditVehiclePage() {
       seating_capacity: seating ? Number(seating) : undefined,
       fuel_type: fuelType,
       transmission_type: transmission,
-      efficiency_km_per_kwh: parseFloat(efficiency),
+      efficiency_km_per_kwh: efficiency ? parseFloat(efficiency) : undefined,
     };
+
+    console.log("Update payload:", payload);
 
     try {
       await updateVehicle(vehicleId, payload);
@@ -182,9 +217,17 @@ export default function EditVehiclePage() {
 
       router.push("/vehicles");
     } catch (e: any) {
+      console.error("Update error:", e);
+      console.error("Error response:", e?.response?.data);
+      
+      const errorMessage = e?.response?.data?.detail || 
+                          e?.response?.data?.message || 
+                          e?.message || 
+                          "Failed to update vehicle";
+      
       toast({
         title: "Error",
-        description: e?.message || "Failed to update vehicle",
+        description: errorMessage,
         variant: "destructive", // red for error
       });
     } finally {
