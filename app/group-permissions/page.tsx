@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getGroups, AddGroups } from "@/lib/api";
+import { getGroups, AddGroups, getGroupPermissions, getGroupUsers } from "@/lib/api";
 import Link from "next/link";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -70,8 +70,34 @@ export default function RoleManagementPage() {
     try {
       const resp = await getGroups(pageNum);
       const rows: Group[] = resp?.results ?? resp ?? [];
-      setItems(rows);
-      setTotalCount(resp.count ?? rows.length);
+      
+      // Fetch permissions and users for each group
+      const groupsWithCounts = await Promise.all(
+        rows.map(async (group) => {
+          try {
+            const [permissionsRes, usersRes] = await Promise.all([
+              getGroupPermissions(group.id),
+              getGroupUsers(group.id)
+            ]);
+            
+            return {
+              ...group,
+              permissions: permissionsRes?.results || permissionsRes || [],
+              users: usersRes || []
+            };
+          } catch (error) {
+            console.error(`Error fetching data for group ${group.id}:`, error);
+            return {
+              ...group,
+              permissions: [],
+              users: []
+            };
+          }
+        })
+      );
+      
+      setItems(groupsWithCounts);
+      setTotalCount(resp.count ?? groupsWithCounts.length);
       setPage(pageNum);
     } catch (e: any) {
       setError(e?.message || "Failed to load roles");

@@ -1006,7 +1006,10 @@ export default api;
 // export const deleteUser = async (id: number) => (await api.delete(`/api/users/users/${id}/`)).data;
 
 // // ----------------- GROUP & PERMISSIONS -----------------
-export const getGroups = async () => (await api.get("/api/users/groups/")).data.results;
+export const getGroups = async () => {
+  const res = await api.get("/api/users/groups/");
+  return res.data.results;
+};
 // export const getPermissions = async () => (await api.get("/api/users/permissions/")).data.results;
 // export const getGroupPermissions = async (groupId: number) => (await api.get(`/api/users/groups/${groupId}/permissions/`)).data;
 // export const assignUsersToGroup = async (groupId: number, users: number[]) => (await api.post(`/api/users/groups/${groupId}/users/`, { users })).data;

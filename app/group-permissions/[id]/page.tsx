@@ -153,6 +153,12 @@ export default function RoleDetailPage() {
         };
 
         setRoleData(transformedData);
+
+        // Also fetch permissions and users immediately
+        await Promise.all([
+          fetchPermissions(),
+          fetchUsers()
+        ]);
       } catch (error) {
         console.error("Error fetching role data:", error);
         setError("Failed to load role details");
