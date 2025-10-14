@@ -30,7 +30,7 @@ interface Vehicle {
   vin: string;
   model: string;
   make: string;
-  vehicle_type: number;
+  vehicle_type: number | string | { id: number; name: string }; // Could be ID, string, or object
   health_status: "Good" | "Warning" | "Critical";
   current_battery_level: number;
   mileage_km: number;
@@ -167,12 +167,12 @@ export default function VehiclesPage() {
   };
 
   useEffect(() => {
-    fetchVehicles(1);
+    const loadData = async () => {
+      await fetchVehicleTypes();
+      await fetchVehicles(1);
+    };
+    loadData();
   }, [fleetId]);
-
-  useEffect(() => {
-    fetchVehicleTypes();
-  }, []);
 
   useEffect(() => {
     fetchVehicles();
@@ -304,7 +304,17 @@ export default function VehiclesPage() {
                 <TableBody>
                   {vehicles.map((vehicle) => {
                     const name = `${vehicle.make} ${vehicle.model}`.trim();
-                    const vt = typeMap[vehicle.vehicle_type] ?? "N/A";
+                    
+                    // Handle different vehicle_type data structures
+                    let vt = "N/A";
+                    if (typeof vehicle.vehicle_type === 'string') {
+                      vt = vehicle.vehicle_type;
+                    } else if (typeof vehicle.vehicle_type === 'object' && vehicle.vehicle_type?.name) {
+                      vt = vehicle.vehicle_type.name;
+                    } else if (typeof vehicle.vehicle_type === 'number') {
+                      vt = typeMap[vehicle.vehicle_type] ?? "N/A";
+                    }
+                    
                     console.log(`Vehicle ${vehicle.vin}: vehicle_type=${vehicle.vehicle_type}, mapped_type=${vt}, typeMap=`, typeMap);
                     return (
                       <TableRow key={vehicle.id}>
