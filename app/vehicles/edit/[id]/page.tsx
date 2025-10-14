@@ -120,6 +120,9 @@ export default function EditVehiclePage() {
         console.log("Vehicle data:", data);
         console.log("Vehicle type from API:", data.vehicle_type);
         console.log("Vehicle type ID from API:", data.vehicle_type_id);
+        console.log("Fleet operator from API:", data.fleet_operator);
+        console.log("Fleet operator type:", typeof data.fleet_operator);
+        console.log("All vehicle fields:", Object.keys(data));
 
         setVin(data.vin || "");
         setLicensePlate(data.license_plate || "");
@@ -128,7 +131,14 @@ export default function EditVehiclePage() {
           (typeof data.vehicle_type === 'object' && data.vehicle_type?.id) ? String(data.vehicle_type.id) :
           data.vehicle_type ? String(data.vehicle_type) : undefined
         );
-        setFleetOperator(data.fleet_operator);
+        // Handle fleet_operator - could be object with id or just the id
+        setFleetOperator(
+          typeof data.fleet_operator === 'object' && data.fleet_operator?.id 
+            ? String(data.fleet_operator.id) 
+            : data.fleet_operator 
+            ? String(data.fleet_operator) 
+            : undefined
+        );
         setMake(data.make || "");
         setModel(data.model || "");
         setYear(data.year ? String(data.year) : "");
@@ -243,6 +253,27 @@ export default function EditVehiclePage() {
   };
 
   if (loading) return <div className="p-6">Loading vehicle...</div>;
+  
+  // Debug: Log current state values
+  console.log("Form state values:", {
+    vin,
+    licensePlate,
+    vehicleType,
+    fleetOperator,
+    make,
+    model,
+    year,
+    batteryCapacity,
+    currentBattery,
+    mileage,
+    warranty,
+    status,
+    color,
+    seating,
+    fuelType,
+    transmission,
+    efficiency
+  });
 
   return (
     <div className="space-y-6">
