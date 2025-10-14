@@ -75,6 +75,7 @@ export default function VehiclesPage() {
   const fetchVehicleTypes = async () => {
     try {
       const data = await listVehiclesType();
+      console.log("Vehicle Types API Response:", data);
       setVehicleTypes(data.results ?? []);
     } catch (err) {
       console.error("Error fetching vehicle types:", err);
@@ -82,7 +83,11 @@ export default function VehiclesPage() {
   };
 
   const typeMap = useMemo(
-    () => Object.fromEntries(vehicleTypes.map((t) => [t.id, t.name])),
+    () => {
+      const map = Object.fromEntries(vehicleTypes.map((t) => [t.id, t.name]));
+      console.log("TypeMap created:", map);
+      return map;
+    },
     [vehicleTypes]
   );
 
@@ -95,8 +100,15 @@ export default function VehiclesPage() {
         initialTypeId !== "all" ? Number(initialTypeId) : undefined
       );
 
+      console.log("API Response:", resp);
       let rows: Vehicle[] = resp.results ?? [];
       let count = resp.count ?? rows.length;
+      
+      // Debug vehicle data
+      if (rows.length > 0) {
+        console.log("First vehicle data:", rows[0]);
+        console.log("Vehicle types available:", vehicleTypes);
+      }
 
       // local filters
       if (searchTerm) {
@@ -293,6 +305,7 @@ export default function VehiclesPage() {
                   {vehicles.map((vehicle) => {
                     const name = `${vehicle.make} ${vehicle.model}`.trim();
                     const vt = typeMap[vehicle.vehicle_type] ?? "N/A";
+                    console.log(`Vehicle ${vehicle.vin}: vehicle_type=${vehicle.vehicle_type}, mapped_type=${vt}, typeMap=`, typeMap);
                     return (
                       <TableRow key={vehicle.id}>
                         <TableCell>
