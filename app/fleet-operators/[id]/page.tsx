@@ -7,6 +7,7 @@ import {
   deleteFleetOperator,
   getFleetOperatorById,
   updateFleetOperatorLogo,
+  listVehicles,
 } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -71,11 +72,25 @@ export default function FleetOperatorDetailPage() {
 
   const [operator, setOperator] = useState<FleetOperator | null>(null);
   const [loading, setLoading] = useState(true);
+  const [vehicleCount, setVehicleCount] = useState<number>(0);
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Fetch vehicle count for this fleet operator
+  const fetchVehicleCount = async (fleetId: number) => {
+    try {
+      const response = await listVehicles(1, fleetId);
+      const count = response.count || response.results?.length || 0;
+      setVehicleCount(count);
+      console.log(`Vehicle count for fleet ${fleetId}:`, count);
+    } catch (error) {
+      console.error("Error fetching vehicle count:", error);
+      setVehicleCount(0);
+    }
+  };
 
   useEffect(() => {
     if (!numericId || Number.isNaN(numericId)) return;
@@ -86,6 +101,9 @@ export default function FleetOperatorDetailPage() {
         if (!mounted) return;
         setOperator(data);
         setLogoUrl(data?.logo ?? null);
+        
+        // Fetch vehicle count after operator data is loaded
+        await fetchVehicleCount(numericId);
       } catch (e) {
         console.error(e);
       } finally {
@@ -221,7 +239,7 @@ export default function FleetOperatorDetailPage() {
             <Car className="w-6 h-6 text-emerald-600 flex-shrink-0" />
             <div className="min-w-0 flex-1">
               <p className="text-2xl font-bold text-amber-700">
-                {operator?.total_vehicles}
+                {vehicleCount}
               </p>
               <p className="text-xs text-gray-600">Total Vehicles</p>
             </div>
