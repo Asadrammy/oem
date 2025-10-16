@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Eye, Plus, Edit, Trash2 } from "lucide-react";
 import { listFleetOperators, deleteFleetOperator } from "@/lib/api";
+import { fuzzySearch } from "@/lib/fuzzySearch";
 import {
   Table,
   TableBody,
@@ -52,15 +53,12 @@ export default function FleetOperatorPage() {
       let rows: FleetOperator[] = resp.results ?? [];
       let count: number = resp.count ?? rows.length;
 
-      // local search filter
+      // Apply fuzzy search filter
       if (searchTerm) {
-        rows = rows.filter(
-          (op) =>
-            op.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            op.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            op.contact_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            op.contact?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        rows = fuzzySearch(rows, searchTerm, ['name', 'code', 'contact_email', 'contact'], {
+          threshold: 0.3,
+          minLength: 2
+        });
       }
 
       setOperators(rows);

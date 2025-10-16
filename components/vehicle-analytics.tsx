@@ -61,6 +61,16 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
 
   const [data, setData] = useState<HistoryResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   // Hydrate filters from URL
   useEffect(() => {
@@ -206,7 +216,20 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
 
       <Card>
         <CardHeader>
-          <CardTitle>Telemetry</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Telemetry</CardTitle>
+            <div className="text-sm text-gray-500 font-mono">
+              {currentTime.toLocaleString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+              })}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {loading && <p className="text-sm text-gray-500">Loading…</p>}
@@ -217,13 +240,124 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
             </div>
           )}
           {!loading && data?.time_series_charts && seriesKeys.length > 0 && (
-            <div className="w-full h-[360px]">
+            <div className="space-y-4">
+              {/* Date Range Info */}
+              <div className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Data Range:</span>
+                  <span>
+                    {data.date_filter ? 
+                      `${new Date(data.date_filter.start_date).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })} - ${new Date(data.date_filter.end_date).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}` :
+                      'Current period'
+                    }
+                  </span>
+                </div>
+                <div className="text-xs text-gray-500">
+                  {data.raw ? `${data.raw.length} data points` : ''}
+                </div>
+              </div>
+              <div className="w-full h-[360px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={mergeSeries(data.time_series_charts, seriesKeys)}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="time" />
+                  <XAxis 
+                    dataKey="time"
+                    tickFormatter={(value) => {
+                      // Format the time label to show date and time clearly
+                      try {
+                        const date = new Date(value);
+                        if (!isNaN(date.getTime())) {
+                          const now = new Date();
+                          const isToday = date.toDateString() === now.toDateString();
+                          const isYesterday = date.toDateString() === new Date(now.getTime() - 24 * 60 * 60 * 1000).toDateString();
+                          
+                          if (isToday) {
+                            return `Today ${date.toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true
+                            })}`;
+                          } else if (isYesterday) {
+                            return `Yesterday ${date.toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true
+                            })}`;
+                          } else {
+                            return date.toLocaleString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true
+                            });
+                          }
+                        }
+                        return value;
+                      } catch {
+                          return value;
+                        }
+                    }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={100}
+                  />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip 
+                    labelFormatter={(value) => {
+                      // Format tooltip label to show full date and time clearly
+                      try {
+                        const date = new Date(value);
+                        if (!isNaN(date.getTime())) {
+                          const now = new Date();
+                          const isToday = date.toDateString() === now.toDateString();
+                          const isYesterday = date.toDateString() === new Date(now.getTime() - 24 * 60 * 60 * 1000).toDateString();
+                          
+                          let dateLabel = '';
+                          if (isToday) {
+                            dateLabel = 'Today';
+                          } else if (isYesterday) {
+                            dateLabel = 'Yesterday';
+                          } else {
+                            dateLabel = date.toLocaleDateString('en-US', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            });
+                          }
+                          
+                          const timeLabel = date.toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: true
+                          });
+                          
+                          return `${dateLabel} at ${timeLabel}`;
+                        }
+                        return value;
+                      } catch {
+                        return value;
+                      }
+                    }}
+                    contentStyle={{
+                      backgroundColor: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      fontSize: '14px',
+                      fontWeight: '500'
+                    }}
+                  />
                   <Legend />
                   {seriesKeys.map((visKey) => {
                     const meta = SERIES[visKey];
@@ -231,6 +365,7 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
                   })}
                 </LineChart>
               </ResponsiveContainer>
+              </div>
             </div>
           )}
         </CardContent>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createVehicleType } from "@/lib/api";
@@ -18,6 +18,7 @@ export default function AddVehicleTypePage() {
 
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [isFormValid, setIsFormValid] = useState(false);
 
   // Form state
   const [code, setCode] = useState("");
@@ -29,6 +30,15 @@ export default function AddVehicleTypePage() {
   const [wltpRange, setWltpRange] = useState("");
   const [status, setStatus] = useState("active");
   const [description, setDescription] = useState("");
+
+  // Form validation
+  useEffect(() => {
+    const valid = code.trim() !== "" && 
+                  name.trim() !== "" && 
+                  category.trim() !== "" && 
+                  drivetrain.trim() !== "";
+    setIsFormValid(valid);
+  }, [code, name, category, drivetrain]);
 
   const onSubmit = async () => {
     setSubmitting(true);
@@ -159,7 +169,7 @@ export default function AddVehicleTypePage() {
             <Link href="/vehicle-types">
               <Button variant="outline">Cancel</Button>
             </Link>
-            <Button onClick={onSubmit} disabled={submitting}>
+            <Button onClick={onSubmit} disabled={!isFormValid || submitting}>
               <Save className="w-4 h-4 mr-2" />
               {submitting ? "Saving…" : "Add Vehicle Type"}
             </Button>

@@ -27,6 +27,7 @@ export default function AddUserPage() {
   const router = useRouter();
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [isFormValid, setIsFormValid] = useState(false);
 
   // Basic user fields
   const [username, setUsername] = useState("");
@@ -46,6 +47,11 @@ export default function AddUserPage() {
   const [role, setRole] = useState("");
   const [preferredTheme, setPreferredTheme] = useState("light");
   const [fleetOperator, setFleetOperator] = useState<number | null>(null);
+
+  // Validation state
+  const [phoneError, setPhoneError] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [emailError, setEmailError] = useState("");
 
   // Fleet operators dropdown
   const [fleetOperators, setFleetOperators] = useState<FleetOperator[]>([]);
@@ -71,6 +77,71 @@ export default function AddUserPage() {
     fetchData();
   }, []);
 
+  // Validation functions
+  const validatePhoneNumber = (phone: string): boolean => {
+    if (!phone.trim()) return true; // Optional field
+    const digitsOnly = phone.replace(/\D/g, '');
+    return digitsOnly.length >= 10 && digitsOnly.length <= 15;
+  };
+
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePIN = (pin: string): boolean => {
+    if (!pin.trim()) return true; // Optional field
+    const pinRegex = /^\d{4,6}$/;
+    return pinRegex.test(pin);
+  };
+
+  // Input handlers with validation
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    value = value.replace(/[^\d\s\-\(\)]/g, '');
+    setPhoneNumber(value);
+    
+    if (value.trim() && !validatePhoneNumber(value)) {
+      setPhoneError("Phone number must be 10-15 digits");
+    } else {
+      setPhoneError("");
+    }
+  };
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setEmail(value);
+    
+    if (value.trim() && !validateEmail(value)) {
+      setEmailError("Please enter a valid email address");
+    } else {
+      setEmailError("");
+    }
+  };
+
+  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    value = value.replace(/\D/g, '');
+    setPin(value);
+    
+    if (value.trim() && !validatePIN(value)) {
+      setPinError("PIN must be 4-6 digits");
+    } else {
+      setPinError("");
+    }
+  };
+
+  // Form validation
+  useEffect(() => {
+    const valid = username.trim() !== "" && 
+                  email.trim() !== "" && 
+                  password.trim() !== "" && 
+                  confirmPassword.trim() !== "" &&
+                  password === confirmPassword &&
+                  !phoneError && !pinError && !emailError;
+    setIsFormValid(valid);
+  }, [username, email, password, confirmPassword, phoneError, pinError, emailError]);
+
 const onSubmit = async () => {
   setErr("");
 
@@ -93,6 +164,16 @@ const onSubmit = async () => {
     return;
   }
 
+  // Email format validation
+  if (!validateEmail(email)) {
+    toast({
+      title: "Error",
+      description: "Please enter a valid email address",
+      variant: "destructive",
+    });
+    return;
+  }
+
   if (!password.trim()) {
     toast({
       title: "Error",
@@ -106,6 +187,26 @@ const onSubmit = async () => {
     toast({
       title: "Error",
       description: "Passwords do not match",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  // Phone number validation
+  if (phoneNumber.trim() && !validatePhoneNumber(phoneNumber)) {
+    toast({
+      title: "Error",
+      description: "Phone number must be 10-15 digits long",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  // PIN validation
+  if (pin.trim() && !validatePIN(pin)) {
+    toast({
+      title: "Error",
+      description: "PIN must be 4-6 digits",
       variant: "destructive",
     });
     return;
@@ -200,8 +301,10 @@ const onSubmit = async () => {
               <Input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={handleEmailChange}
+                className={emailError ? "border-red-500" : ""}
               />
+              {emailError && <p className="text-red-500 text-sm mt-1">{emailError}</p>}
             </div>
           </div>
 
@@ -252,8 +355,12 @@ const onSubmit = async () => {
                   <Label>Phone Number</Label>
                   <Input
                     value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    onChange={handlePhoneChange}
+                    placeholder="e.g., +1 (555) 123-4567 or 5551234567"
+                    className={phoneError ? "border-red-500" : ""}
                   />
+                  {phoneError && <p className="text-red-500 text-sm mt-1">{phoneError}</p>}
+                  <p className="text-gray-500 text-xs mt-1">Enter 10-15 digits (international format supported)</p>
                 </div>
                 <div>
                   <Label>City</Label>
@@ -276,8 +383,12 @@ const onSubmit = async () => {
                   <Label>PIN</Label>
                   <Input
                     value={pin}
-                    onChange={(e) => setPin(e.target.value)}
+                    onChange={handlePinChange}
+                    placeholder="4-6 digits"
+                    maxLength={6}
+                    className={pinError ? "border-red-500" : ""}
                   />
+                  {pinError && <p className="text-red-500 text-sm mt-1">{pinError}</p>}
                 </div>
               </div>
 
@@ -340,7 +451,7 @@ const onSubmit = async () => {
             <Link href="/user">
               <Button variant="outline">Cancel</Button>
             </Link>
-            <Button onClick={onSubmit} disabled={submitting}>
+            <Button onClick={onSubmit} disabled={!isFormValid || submitting}>
               <Save className="w-4 h-4 mr-2" />
               {submitting ? "Saving…" : "Add User"}
             </Button>

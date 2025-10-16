@@ -32,6 +32,7 @@ import {
   updateDevice,
   deleteDevice,
 } from "@/lib/api";
+import { fuzzySearch } from "@/lib/fuzzySearch";
 import Link from "next/link";
 
 type Device = {
@@ -80,13 +81,10 @@ export default function DevicesPage() {
 
   const filtered = useMemo(() => {
     if (!searchTerm.trim()) return items;
-    const q = searchTerm.toLowerCase();
-    return items.filter(
-      (d) =>
-        d.device_id?.toLowerCase().includes(q) ||
-        d.serial_number?.toLowerCase().includes(q) ||
-        d.firmware_version?.toLowerCase().includes(q)
-    );
+    return fuzzySearch(items, searchTerm, ['device_id', 'serial_number', 'firmware_version'], {
+      threshold: 0.3,
+      minLength: 2
+    });
   }, [items, searchTerm]);
   // Fetch page
   const fetchPage = async (pageNum: number) => {
@@ -184,12 +182,31 @@ export default function DevicesPage() {
               <TableBody>
                 {loading && (
                   <TableRow>
-                    <TableCell colSpan={9}>Loading…</TableCell>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2"></div>
+                        Loading devices...
+                      </div>
+                    </TableCell>
                   </TableRow>
                 )}
                 {!loading && filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9}>No devices found</TableCell>
+                    <TableCell colSpan={6} className="text-center py-12">
+                      <div className="flex flex-col items-center">
+                        <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                          <Search className="w-8 h-8 text-gray-400" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No OBD devices found</h3>
+                        <p className="text-gray-500 mb-4">Get started by adding your first OBD device to monitor vehicle data.</p>
+                        <Link href="/obd-device/add">
+                          <Button className="bg-blue-600 hover:bg-blue-700">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add OBD Device
+                          </Button>
+                        </Link>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 )}
                 {filtered
@@ -213,13 +230,14 @@ export default function DevicesPage() {
                       <TableCell className="text-right space-x-2">
                         {/* Edit */}
                         <Link href={`/obd-device/${d.id}`}>
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" aria-label={`View device ${d.device_id}`}>
                             <Eye className="w-4 h-4" />
                           </Button>
                         </Link>
                         <Button 
                           variant="ghost" 
                           size="sm"
+                          aria-label={`Edit device ${d.device_id}`}
                           onClick={(e) => {
                             console.log("Edit button clicked for device:", d.id);
                             e.stopPropagation();
@@ -238,6 +256,7 @@ export default function DevicesPage() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              aria-label={`Delete device ${d.device_id}`}
                               onClick={() => setDeleteId(d.id)}
                             >
                               <Trash2 className="w-4 h-4" />

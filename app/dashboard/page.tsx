@@ -772,6 +772,7 @@ export default function Dashboard() {
   useEffect(() => setMounted(true), []);
 
   // Vehicles - Load first as it's most important
+  // Vehicles - Load first as it's most important
   useEffect(() => {
     if (!mounted) return;
     async function fetchVehicles() {
@@ -782,7 +783,7 @@ export default function Dashboard() {
         console.log("🚗 Vehicles data:", data);
         setVehicles(data.results || []);
         setVehiclesCount(data.count ?? data.results?.length ?? 0);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to load vehicles", err);
         console.error("Error details:", err?.response?.data);
         console.error("Error status:", err?.response?.status);
@@ -794,23 +795,41 @@ export default function Dashboard() {
   }, [mounted]);
 
   // Summary data - Load after vehicles with parallel requests
+  // Summary data - Load after vehicles with parallel requests
   useEffect(() => {
     if (!mounted) return;
     async function fetchSummaryData() {
       try {
         setSummaryLoading(true);
         console.log("📊 Fetching summary data...");
-        const [summaryData, alertsData, firmwareData] = await Promise.all([
+        const [summaryData, alertsDataResp, firmwareData] = await Promise.all([
           dashboardSummary(),
           alerts(),
-          listFirmwareUpdates()
+          listFirmwareUpdates(),
         ]);
         
         console.log("📊 Summary data:", summaryData);
-        setSummary(summaryData);
-        setAlertsData(alertsData.results || []);
+        
+        const correctedSummary = {
+          ...summaryData,
+          total_vehicles: vehiclesCount,
+          online_vehicles: summaryData?.online_vehicles || 0,
+          critical_alerts: summaryData?.critical_alerts || 0,
+          total_active_trips: summaryData?.total_active_trips || 0,
+          total_distance_travelled_km: summaryData?.total_distance_travelled_km || 0,
+          vehicle_status_breakdown:
+            summaryData?.vehicle_status_breakdown || {
+            available: 0,
+            in_use: 0,
+            maintenance: 0,
+              offline: 0,
+            },
+        } as any;
+        
+        setSummary(correctedSummary);
+        setAlertsData(alertsDataResp.results || []);
         setFirmwareUpdates(firmwareData.results || []);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to load summary data", err);
         console.error("Error details:", err?.response?.data);
         console.error("Error status:", err?.response?.status);
@@ -819,7 +838,7 @@ export default function Dashboard() {
       }
     }
     fetchSummaryData();
-  }, [mounted]);
+  }, [mounted, vehiclesCount]);
 
   // Fleet-aggregated telemetry polling (build time-series from averages)
   const fetchTelemetry = async () => {
@@ -840,7 +859,6 @@ export default function Dashboard() {
         error_record_count: data.error_record_count ?? 0,
       };
 
-      // ✅ KPIs update
       setTelemetry({
         speed_kph: point.speed_kph,
         battery_level_percent: point.battery_level_percent,
@@ -852,7 +870,6 @@ export default function Dashboard() {
         error_record_count: point.error_record_count,
       });
 
-      // ✅ Time-series update (keep last 100 points)
       setSeries((prev) => [...prev.slice(-99), point]);
     } catch (err) {
       console.error("Failed to fetch aggregated telemetry", err);
@@ -1232,7 +1249,15 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="time"
-                    tickFormatter={(t) => new Date(t).toLocaleTimeString()}
+                    tickFormatter={(t) => {
+                      const date = new Date(t);
+                      return date.toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      });
+                    }}
                     tick={{ fontSize: 10 }}  // ↓ Decreased X-axis font size
                   />
                   <YAxis
@@ -1245,7 +1270,19 @@ export default function Dashboard() {
                     domain={[0, 100]}
                     label={{ value: "Battery (%)", angle: -90, position: "insideRight" }}
                   />
-                  <Tooltip labelFormatter={(t) => new Date(t).toLocaleTimeString()} />
+                  <Tooltip 
+                    labelFormatter={(t) => {
+                      const date = new Date(t);
+                      return date.toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                      });
+                    }}
+                  />
                   <Legend />
                   <Line
                     yAxisId="left"

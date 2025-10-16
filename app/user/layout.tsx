@@ -1,29 +1,17 @@
 
-"use client";
+import MainLayout from "@/components/MainLayout";
 
-import type React from "react";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { AppSidebar } from "../../components/app-sidebar";
-import { Header } from "@/components/header";
-
-export default function VehiclesLayout({
+export default function UserLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        {/* Reusable Header */}
-        <Header
-          title="User Management "
-          subtitle=" Manage Users"
-        />
-
-        {/* Main Content */}
-        <div className="flex-1 p-6 bg-gray-50">{children}</div>
-      </SidebarInset>
-    </SidebarProvider>
+    <MainLayout 
+      title="User Management" 
+      subtitle="Manage system users and their profiles"
+    >
+      {children}
+    </MainLayout>
   );
 }

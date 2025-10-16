@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Battery, Thermometer, MapPin } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { useState, useEffect } from "react";
 
 export type OBDDevice = {
   id: number;
@@ -53,6 +54,16 @@ export function TelemetryWidget({
   >;
 }) {
   const list: OBDDevice[] = Array.isArray(devices) ? devices : [];
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   if (loading) return <div className="text-sm text-gray-500 animate-pulse">Loading telemetry…</div>;
   if (error) return <div className="text-sm text-red-600">{error}</div>;
@@ -73,7 +84,20 @@ export function TelemetryWidget({
   return (
     <Card className="bg-white">
       <CardHeader>
-        <CardTitle className="text-base">Telemetry</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Telemetry</CardTitle>
+          <div className="text-sm text-gray-500 font-mono">
+            {currentTime.toLocaleString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: true
+            })}
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Top badges */}

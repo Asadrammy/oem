@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Eye, Plus, Edit, Trash2 } from "lucide-react";
+import { Search, Eye, Plus, Edit, Trash2, Car } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -24,6 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listVehicles, listVehiclesType, deleteVehicle } from "@/lib/api";
+import { fuzzySearch } from "@/lib/fuzzySearch";
 
 interface Vehicle {
   id: number;
@@ -110,18 +111,11 @@ export default function VehiclesPage() {
         console.log("Vehicle types available:", vehicleTypes);
       }
 
-      // local filters
+      // Apply fuzzy search filter
       if (searchTerm) {
-        const lower = searchTerm.toLowerCase();
-        rows = rows.filter((v) => {
-          const name = `${v.make} ${v.model}`.toLowerCase();
-          return (
-            (v.vin ?? "").toLowerCase().includes(lower) ||
-            name.includes(lower) ||
-            (v.model ?? "").toLowerCase().includes(lower) ||
-            (v.make ?? "").toLowerCase().includes(lower) ||
-            (v.license_plate ?? "").toLowerCase().includes(lower)
-          );
+        rows = fuzzySearch(rows, searchTerm, ['vin', 'make', 'model', 'license_plate'], {
+          threshold: 0.3,
+          minLength: 2
         });
       }
 
@@ -284,9 +278,26 @@ export default function VehiclesPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p>Loading vehicles...</p>
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                <p className="text-gray-500">Loading vehicles...</p>
+              </div>
+            </div>
           ) : vehicles.length === 0 ? (
-            <p className="text-gray-500">No vehicles found.</p>
+            <div className="text-center py-12">
+              <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <Car className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No vehicles yet</h3>
+              <p className="text-gray-500 mb-4">Get started by adding your first vehicle to the fleet.</p>
+              <Link href="/vehicles/add">
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Your First Vehicle
+                </Button>
+              </Link>
+            </div>
           ) : (
             <>
               <Table>
@@ -345,13 +356,14 @@ export default function VehiclesPage() {
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <Link href={`/vehicles/${vehicle.id}`}>
-                              <Button variant="ghost" size="sm">
+                              <Button variant="ghost" size="sm" aria-label={`View vehicle ${vehicle.vin}`}>
                                 <Eye className="w-4 h-4" />
                               </Button>
                             </Link>
                             <Button 
                               variant="ghost" 
                               size="sm"
+                              aria-label={`Edit vehicle ${vehicle.vin}`}
                               onClick={(e) => {
                                 console.log("Edit button clicked for vehicle:", vehicle.id);
                                 e.stopPropagation();
@@ -363,6 +375,7 @@ export default function VehiclesPage() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              aria-label={`Delete vehicle ${vehicle.vin}`}
                               onClick={async () => {
                                 if (confirm("Are you sure you want to delete this vehicle?")) {
                                   try {

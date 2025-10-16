@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listAlertRules, listVehiclesType, deleteAlertRule } from "@/lib/api";
+import { fuzzySearch } from "@/lib/fuzzySearch";
 
 interface Condition {
   id: number;
@@ -77,9 +78,10 @@ export default function AlertRulesPage() {
       let rules: AlertRule[] = data.results ?? [];
 
       if (activeSearchTerm) {
-        rules = rules.filter((r) =>
-          r.name.toLowerCase().includes(activeSearchTerm.toLowerCase())
-        );
+        rules = fuzzySearch(rules, activeSearchTerm, ['name', 'description', 'severity', 'system'], {
+          threshold: 0.3,
+          minLength: 2
+        });
       }
       if (selectedType !== "all") {
         rules = rules.filter((r) =>
@@ -150,12 +152,12 @@ export default function AlertRulesPage() {
               className="pl-10"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              // onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyPress}
             />
           </div>
 
           <Button
-            onClick={() => setPage(1)}
+          onClick={handleSearch}
             className="bg-gray-700 hover:bg-gray-800"
           >
             Search
@@ -170,7 +172,26 @@ export default function AlertRulesPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p>Loading alert rules...</p>
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                <p className="text-gray-500">Loading alert rules...</p>
+              </div>
+            </div>
+          ) : alertRules.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <Plus className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No alert rules yet</h3>
+              <p className="text-gray-500 mb-4">Create your first alert rule to monitor vehicle conditions and get notified of issues.</p>
+              <Link href="/alerts/create">
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Alert Rule
+                </Button>
+              </Link>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -220,7 +241,7 @@ export default function AlertRulesPage() {
                         <div className="flex items-center gap-1">
                           {/* View */}
                           <Link href={`/alerts/${rule.id}`}>
-                            <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="sm" aria-label={`View alert rule ${rule.name}`}>
                               <Eye className="w-4 h-4" />
                             </Button>
                           </Link>
@@ -229,6 +250,7 @@ export default function AlertRulesPage() {
                           <Button 
                             variant="ghost" 
                             size="sm"
+                            aria-label={`Edit alert rule ${rule.name}`}
                             onClick={(e) => {
                               console.log("Edit button clicked for alert:", rule.id);
                               e.stopPropagation();
@@ -242,6 +264,7 @@ export default function AlertRulesPage() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            aria-label={`Delete alert rule ${rule.name}`}
                             onClick={async () => {
                               if (
                                 confirm(

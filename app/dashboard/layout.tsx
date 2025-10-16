@@ -1,29 +1,16 @@
-"use client"
+import MainLayout from "@/components/MainLayout";
 
-import type React from "react"
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
-import { AppSidebar } from "../../components/app-sidebar"
-import { Header } from "@/components/header"
-
-export default function VehiclesLayout({
+export default function DashboardLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        {/* Reusable Header */}
-        <Header
-          title="Fleet Dashboard"
-          subtitle="Real-time diagnostics and fleet management"
-          
-        />
-
-        {/* Main Content */}
-        <div className="flex-1 p-6 bg-gray-50">{children}</div>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+    <MainLayout 
+      title="Fleet Dashboard" 
+      subtitle="Real-time diagnostics and fleet management"
+    >
+      {children}
+    </MainLayout>
+  );
 }

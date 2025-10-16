@@ -382,5 +382,7 @@
 import { redirect } from "next/navigation";
 
 export default function Home() {
-  redirect("/login");
+  // This will be handled by middleware or auth context
+  // For now, redirect to dashboard as the main entry point
+  redirect("/dashboard");
 }

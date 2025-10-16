@@ -202,7 +202,7 @@ export default function FleetOperatorDetailPage() {
         <div className="flex justify-between items-center">
           <Button variant="ghost" className="rounded-full" onClick={() => router.back()}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Fleet Operator
+            Back to Fleet Operators
           </Button>
         </div>
 

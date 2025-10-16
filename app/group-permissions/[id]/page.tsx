@@ -159,8 +159,12 @@ export default function RoleDetailPage() {
           fetchPermissions(),
           fetchUsers()
         ]);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching role data:", error);
+        if (error?.response?.status === 404) {
+          router.push('/not-found');
+          return;
+        }
         setError("Failed to load role details");
       } finally {
         setLoading(false);
@@ -168,7 +172,7 @@ export default function RoleDetailPage() {
     };
 
     fetchRoleData();
-  }, [roleId]);
+  }, [roleId, router]);
 
   // Fetch permissions for the permissions tab
   const fetchPermissions = async () => {

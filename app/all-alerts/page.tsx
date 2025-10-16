@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Eye, Trash2 } from "lucide-react";
 import { listAlerts, deleteAlertRule } from "@/lib/api";
+import { fuzzySearch } from "@/lib/fuzzySearch";
 import {
   Table,
   TableHeader,
@@ -79,16 +80,13 @@ export default function AlertRulesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
-  // frontend filter
-  const filteredRules = alertRules.filter((r) => {
-    const search = searchInput.toLowerCase();
-    return (
-      r.title?.toLowerCase().includes(search) ||
-      r.alert_type?.toLowerCase().includes(search) ||
-      r.system?.toLowerCase().includes(search) ||
-      r.severity?.toLowerCase().includes(search)
-    );
-  });
+  // frontend filter using fuzzy search
+  const filteredRules = searchInput 
+    ? fuzzySearch(alertRules, searchInput, ['title', 'alert_type', 'system', 'severity'], {
+        threshold: 0.3,
+        minLength: 2
+      })
+    : alertRules;
 
   return (
     <div className="space-y-6">
@@ -109,13 +107,18 @@ export default function AlertRulesPage() {
               className="pl-10"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  setSearchInput(searchText);
+                  setPage(1);
+                }
+              }}
             />
           </div>
           <Button
             onClick={() => {
               setSearchInput(searchText); // apply search
               setPage(1); // reset page
-              fetchAlertRules(1);
             }}
           >
             Search

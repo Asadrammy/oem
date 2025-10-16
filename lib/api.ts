@@ -77,16 +77,37 @@ api.interceptors.response.use(
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
+      
+      // Check if it's a token validation error
+      const errorData = error.response?.data;
+      if (errorData?.code === "token_not_valid" || 
+          errorData?.detail?.includes("token") ||
+          errorData?.messages?.some((msg: any) => msg.token_type === "access")) {
+        
+        console.log("🔄 Token invalid, attempting refresh...");
+        const newToken = await refreshAccessToken();
 
-      const newToken = await refreshAccessToken();
-
-      if (newToken) {
-        originalRequest.headers.Authorization = `Bearer ${newToken}`;
-        return api(originalRequest);
+        if (newToken) {
+          console.log("✅ Token refreshed successfully");
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return api(originalRequest);
+        } else {
+          console.log("❌ Token refresh failed, redirecting to login");
+          if (typeof window !== "undefined") {
+            // Clear all auth data
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("refresh_token");
+            localStorage.removeItem("user");
+            // Redirect to login if refresh token also expired
+            window.location.href = "/login";
+          }
+        }
       } else {
-        if (typeof window !== "undefined") {
-          // Redirect to login if refresh token also expired
-          window.location.href = "/login";
+        // For other 401 errors, still try to refresh
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return api(originalRequest);
         }
       }
     }
@@ -172,6 +193,8 @@ export const logout = () => {
   if (typeof window !== "undefined") {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("api_company");
   }
 };
 
@@ -707,7 +730,7 @@ export const getSIMCard = async (id: number) => {
   return res.data;
 };
 export const deleteSIMCard = async (id: number) => {
-  const res = await api.get(`/api/fleet/sim-cards/${id}`);
+  const res = await api.delete(`/api/fleet/sim-cards/${id}`);
   return res.data;
 };
 export const listSIMCards = async (page: number = 1) => {
@@ -863,6 +886,11 @@ export const rollOutFirmwareUpdates = async (id: number) => {
   const res = await api.post(`/api/fleet/firmware-updates/${id}/resume/`);
   return res.data;
 };
+
+export const pauseFirmwareUpdates = async (id: number) => {
+  const res = await api.post(`/api/fleet/firmware-updates/${id}/pause/`);
+  return res.data;
+};
 export const firmwareUpdatesByID = async (id: number) => {
   const res = await api.get(`/api/fleet/firmware-updates/${id}`);
   return res.data;
@@ -887,6 +915,21 @@ export const createFirmwareUpdates = async (data: any) => {
   }
 
   const res = await api.post("/api/fleet/firmware-updates/", data, config);
+  return res.data;
+};
+
+export const updateFirmwareUpdates = async (id: number, data: any) => {
+  // Check if data is FormData, send it correctly
+  let config = {};
+  if (data instanceof FormData) {
+    config = {
+      headers: {
+        "Content-Type": "multipart/form-data", // important for file uploads
+      },
+    };
+  }
+
+  const res = await api.put(`/api/fleet/firmware-updates/${id}/`, data, config);
   return res.data;
 };
 

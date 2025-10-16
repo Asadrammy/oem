@@ -8,6 +8,15 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Eye, Plus, Edit, Trash2 } from "lucide-react";
 import { listUsers, deleteUser } from "@/lib/api";
+import { fuzzySearch } from "@/lib/fuzzySearch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface UserProfile {
   id: number;
@@ -34,6 +43,18 @@ interface User {
   last_login: string | null;
 }
 
+// Helper function to normalize role names for display
+const normalizeRoleName = (role: string | null): string => {
+  if (!role) return "N/A";
+  
+  // Convert underscores to spaces and apply title case
+  return role
+    .replace(/_/g, ' ')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
 export default function UsersPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
@@ -55,12 +76,12 @@ export default function UsersPage() {
       let rows: User[] = resp.results ?? [];
       let count: number = resp.count ?? rows.length;
 
-      // local search filter
+      // Apply fuzzy search filter
       if (searchTerm) {
-        rows = rows.filter((u) =>
-          u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          u.email.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        rows = fuzzySearch(rows, searchTerm, ['username', 'email', 'first_name', 'last_name'], {
+          threshold: 0.3,
+          minLength: 2
+        });
       }
 
       setUsers(rows);
@@ -132,58 +153,66 @@ export default function UsersPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p>Loading users...</p>
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                <p className="text-gray-500">Loading users...</p>
+              </div>
+            </div>
+          ) : users.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <Plus className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No users yet</h3>
+              <p className="text-gray-500 mb-4">Get started by adding your first user to the system.</p>
+              <Link href="/user/add">
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Your First User
+                </Button>
+              </Link>
+            </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4 font-medium text-gray-600">
-                      Username
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600">
-                      Email
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600">
-                      Name
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600">
-                      Role
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600">
-                      Active
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="overflow-auto max-h-[600px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Username</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Active</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {users.map((u) => (
-                    <tr key={u.id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4 font-medium text-blue-600 hover:underline">
+                    <TableRow key={u.id}>
+                      <TableCell className="font-medium text-blue-600 hover:underline">
                         <Link href={`/user/${u.id}`}>{u.username}</Link>
-                      </td>
-                      <td className="py-3 px-4">{u.email}</td>
-                      <td className="py-3 px-4">
+                      </TableCell>
+                      <TableCell>{u.email}</TableCell>
+                      <TableCell>
                         {u.first_name} {u.last_name}
-                      </td>
-                      <td className="py-3 px-4">
-                        {u.profile?.role || "N/A"}
-                      </td>
-                      <td className="py-3 px-4">
+                      </TableCell>
+                      <TableCell>
+                        {normalizeRoleName(u.profile?.role)}
+                      </TableCell>
+                      <TableCell>
                         {u.is_active ? "Yes" : "No"}
-                      </td>
-                      <td className="py-3 px-4">
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-1">
                           <Link href={`/user/${u.id}`}>
-                            <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="sm" aria-label={`View user ${u.username}`}>
                               <Eye className="w-4 h-4" />
                             </Button>
                           </Link>
                           <Button 
                             variant="ghost" 
                             size="sm"
+                            aria-label={`Edit user ${u.username}`}
                             onClick={(e) => {
                               console.log("Edit button clicked for user:", u.id);
                               e.stopPropagation();
@@ -195,6 +224,7 @@ export default function UsersPage() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            aria-label={`Delete user ${u.username}`}
                             onClick={async () => {
                               if (
                                 confirm("Are you sure you want to delete this user?")
@@ -213,14 +243,17 @@ export default function UsersPage() {
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
+            </div>
+          )}
 
-              {/* Pagination */}
-              <div className="flex flex-col md:flex-row justify-between items-center mt-4 px-2 gap-3">
+          {/* Pagination */}
+          {users.length > 0 && (
+            <div className="flex flex-col md:flex-row justify-between items-center mt-4 px-2 gap-3">
                 <span className="text-sm text-gray-600">
                   Showing {(page - 1) * limit + 1}–
                   {Math.min(page * limit, totalCount)} of {totalCount}
@@ -256,7 +289,6 @@ export default function UsersPage() {
                     Next
                   </Button>
                 </div>
-              </div>
             </div>
           )}
         </CardContent>

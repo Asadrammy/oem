@@ -801,7 +801,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createVehicle, listFleetOperators, listVehiclesType } from "@/lib/api";
+import { createVehicle, listFleetOperators, listVehiclesType, listVehicles } from "@/lib/api";
 interface FleetOperator {
   id: string;
   name: string;
@@ -843,6 +843,19 @@ const { toast } = useToast();
   // Error & Loading
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  
+  // Validation states
+  const [existingVehicles, setExistingVehicles] = useState<any[]>([]);
+  const [vinError, setVinError] = useState("");
+  const [licensePlateError, setLicensePlateError] = useState("");
+  const [isFormValid, setIsFormValid] = useState(false);
+  
+  // Non-negative validation errors
+  const [batteryCapacityError, setBatteryCapacityError] = useState("");
+  const [currentBatteryError, setCurrentBatteryError] = useState("");
+  const [mileageError, setMileageError] = useState("");
+  const [efficiencyError, setEfficiencyError] = useState("");
+  const [seatingError, setSeatingError] = useState("");
   //
   useEffect(() => {
     async function fetchOperators() {
@@ -858,6 +871,21 @@ const { toast } = useToast();
     }
 
     fetchOperators();
+  }, []);
+
+  // Fetch existing vehicles for validation
+  useEffect(() => {
+    async function fetchExistingVehicles() {
+      try {
+        const resp = await listVehicles();
+        const vehicles = Array.isArray(resp?.results) ? resp.results : [];
+        setExistingVehicles(vehicles);
+      } catch (error) {
+        console.error("Error fetching existing vehicles:", error);
+      }
+    }
+
+    fetchExistingVehicles();
   }, []);
   // Load vehicle types
   useEffect(() => {
@@ -886,10 +914,169 @@ const { toast } = useToast();
     };
   }, []);
 
+  // Validation functions
+  const validateVIN = (vinValue: string) => {
+    if (!vinValue.trim()) {
+      setVinError("VIN is required");
+      return false;
+    }
+    
+    if (vinValue.length < 10) {
+      setVinError("VIN must be at least 10 characters long");
+      return false;
+    }
+    
+    if (vinValue.length > 17) {
+      setVinError("VIN cannot exceed 17 characters");
+      return false;
+    }
+    
+    // Check for uniqueness
+    const isDuplicate = existingVehicles.some(vehicle => 
+      vehicle.vin && vehicle.vin.toLowerCase() === vinValue.toLowerCase()
+    );
+    
+    if (isDuplicate) {
+      setVinError("This VIN already exists in the system");
+      return false;
+    }
+    
+    // Check for meaningful content (not just numbers or repeated characters)
+    const hasVariety = /[A-Za-z]/.test(vinValue) && /\d/.test(vinValue);
+    const hasRepeatedChars = /(.)\1{4,}/.test(vinValue); // More than 4 repeated characters
+    
+    if (!hasVariety || hasRepeatedChars) {
+      setVinError("VIN must contain both letters and numbers, and not have excessive repeated characters");
+      return false;
+    }
+    
+    setVinError("");
+    return true;
+  };
+
+  const validateLicensePlate = (plateValue: string) => {
+    if (!plateValue.trim()) {
+      setLicensePlateError("License plate is required");
+      return false;
+    }
+    
+    if (plateValue.length < 4) {
+      setLicensePlateError("License plate must be at least 4 characters long");
+      return false;
+    }
+    
+    if (plateValue.length > 12) {
+      setLicensePlateError("License plate cannot exceed 12 characters");
+      return false;
+    }
+    
+    // Check for uniqueness
+    const isDuplicate = existingVehicles.some(vehicle => 
+      vehicle.license_plate && vehicle.license_plate.toLowerCase() === plateValue.toLowerCase()
+    );
+    
+    if (isDuplicate) {
+      setLicensePlateError("This license plate already exists in the system");
+      return false;
+    }
+    
+    // Check for meaningful content (not just numbers or repeated characters)
+    const hasVariety = /[A-Za-z]/.test(plateValue) || /\d/.test(plateValue);
+    const hasRepeatedChars = /(.)\1{3,}/.test(plateValue); // More than 3 repeated characters
+    
+    if (!hasVariety || hasRepeatedChars) {
+      setLicensePlateError("License plate must contain meaningful characters and not have excessive repeated characters");
+      return false;
+    }
+    
+    setLicensePlateError("");
+    return true;
+  };
+
+  // Form validation effect
+  useEffect(() => {
+    const isValid = 
+      validateVIN(vin) &&
+      validateLicensePlate(licensePlate) &&
+      make.trim() !== "" &&
+      model.trim() !== "" &&
+      vehicleType !== undefined &&
+      fleetOperator !== undefined &&
+      validateNonNegative(batteryCapacity, "Battery Capacity", setBatteryCapacityError) &&
+      validateCurrentBattery(currentBattery) &&
+      validateNonNegative(mileage, "Mileage", setMileageError) &&
+      validateNonNegative(efficiency, "Efficiency", setEfficiencyError) &&
+      validateNonNegative(seating, "Seating Capacity", setSeatingError);
+    
+    setIsFormValid(isValid);
+  }, [vin, licensePlate, make, model, vehicleType, fleetOperator, batteryCapacity, currentBattery, mileage, efficiency, seating, existingVehicles]);
+
+  // Helper function to ensure non-negative values
+  const toNonNegativeString = (value: string): string => {
+    const num = parseFloat(value);
+    if (isNaN(num) || value === '') return value;
+    return Math.max(0, num).toString();
+  };
+
+  // Validation functions for numeric fields
+  const validateNonNegative = (value: string, fieldName: string, setError: (error: string) => void) => {
+    if (value === '') {
+      setError("");
+      return true;
+    }
+    
+    const num = parseFloat(value);
+    if (isNaN(num)) {
+      setError(`${fieldName} must be a valid number`);
+      return false;
+    }
+    
+    if (num < 0) {
+      setError(`${fieldName} cannot be negative`);
+      return false;
+    }
+    
+    setError("");
+    return true;
+  };
+
+  const validateCurrentBattery = (value: string) => {
+    if (value === '') {
+      setCurrentBatteryError("");
+      return true;
+    }
+    
+    const num = parseFloat(value);
+    if (isNaN(num)) {
+      setCurrentBatteryError("Battery level must be a valid number");
+      return false;
+    }
+    
+    if (num < 0) {
+      setCurrentBatteryError("Battery level cannot be negative");
+      return false;
+    }
+    
+    if (num > 100) {
+      setCurrentBatteryError("Battery level cannot exceed 100%");
+      return false;
+    }
+    
+    setCurrentBatteryError("");
+    return true;
+  };
+
   // Handle submit
  const onSubmit = async () => {
   setErr("");
   setSubmitting(true);
+
+  // Final validation before submission
+  if (!isFormValid) {
+    setErr("Please fix all validation errors before submitting");
+    setSubmitting(false);
+    return;
+  }
 
   const payload = {
     vin,
@@ -957,18 +1144,49 @@ const { toast } = useToast();
         </CardHeader>
         <CardContent className="space-y-4">
           {err && <div className="text-red-600">{err}</div>}
+          
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+            <h4 className="text-sm font-medium text-blue-800 mb-2">Vehicle Entry Guidelines</h4>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>• <strong>VIN:</strong> Must be 10-17 characters, contain both letters and numbers, and be unique</li>
+              <li>• <strong>License Plate:</strong> Must be 4-12 characters, meaningful, and be unique</li>
+              <li>• <strong>Numeric Fields:</strong> Battery Capacity, Mileage, Efficiency, and Seating Capacity cannot be negative</li>
+              <li>• <strong>Battery Level:</strong> Must be between 0-100%</li>
+              <li>• <strong>Year:</strong> Must be between 1900-2030</li>
+              <li>• Avoid using repetitive characters like "aaaa" or "1111"</li>
+            </ul>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>VIN *</Label>
-              <Input value={vin} onChange={(e) => setVin(e.target.value)} />
+              <Input 
+                value={vin} 
+                onChange={(e) => {
+                  setVin(e.target.value.toUpperCase());
+                  validateVIN(e.target.value);
+                }}
+                className={vinError ? "border-red-500" : ""}
+                placeholder="e.g., 1HGBH41JXMN109186"
+              />
+              {vinError && (
+                <p className="text-sm text-red-600 mt-1">{vinError}</p>
+              )}
             </div>
             <div>
               <Label>License Plate *</Label>
               <Input
                 value={licensePlate}
-                onChange={(e) => setLicensePlate(e.target.value)}
+                onChange={(e) => {
+                  setLicensePlate(e.target.value.toUpperCase());
+                  validateLicensePlate(e.target.value);
+                }}
+                className={licensePlateError ? "border-red-500" : ""}
+                placeholder="e.g., TS09EV2011"
               />
+              {licensePlateError && (
+                <p className="text-sm text-red-600 mt-1">{licensePlateError}</p>
+              )}
             </div>
           </div>
 
@@ -1030,8 +1248,16 @@ const { toast } = useToast();
               <Label>Year</Label>
               <Input
                 type="number"
+                min="1900"
+                max="2030"
                 value={year}
-                onChange={(e) => setYear(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || (parseInt(value) >= 1900 && parseInt(value) <= 2030)) {
+                    setYear(value);
+                  }
+                }}
+                placeholder="e.g., 2024"
               />
             </div>
             <div>
@@ -1049,17 +1275,40 @@ const { toast } = useToast();
               <Label>Battery Capacity (kWh)</Label>
               <Input
                 type="number"
+                min="0"
+                step="0.1"
                 value={batteryCapacity}
-                onChange={(e) => setBatteryCapacity(e.target.value)}
+                onChange={(e) => {
+                  const sanitizedValue = toNonNegativeString(e.target.value);
+                  setBatteryCapacity(sanitizedValue);
+                  validateNonNegative(sanitizedValue, "Battery Capacity", setBatteryCapacityError);
+                }}
+                className={batteryCapacityError ? "border-red-500" : ""}
+                placeholder="e.g., 75.5"
               />
+              {batteryCapacityError && (
+                <p className="text-sm text-red-600 mt-1">{batteryCapacityError}</p>
+              )}
             </div>
             <div>
               <Label>Current Battery Level (%)</Label>
               <Input
                 type="number"
+                min="0"
+                max="100"
+                step="0.1"
                 value={currentBattery}
-                onChange={(e) => setCurrentBattery(e.target.value)}
+                onChange={(e) => {
+                  const sanitizedValue = toNonNegativeString(e.target.value);
+                  setCurrentBattery(sanitizedValue);
+                  validateCurrentBattery(sanitizedValue);
+                }}
+                className={currentBatteryError ? "border-red-500" : ""}
+                placeholder="e.g., 85.5"
               />
+              {currentBatteryError && (
+                <p className="text-sm text-red-600 mt-1">{currentBatteryError}</p>
+              )}
             </div>
           </div>
 
@@ -1068,17 +1317,39 @@ const { toast } = useToast();
               <Label>Mileage (km)</Label>
               <Input
                 type="number"
+                min="0"
+                step="0.1"
                 value={mileage}
-                onChange={(e) => setMileage(e.target.value)}
+                onChange={(e) => {
+                  const sanitizedValue = toNonNegativeString(e.target.value);
+                  setMileage(sanitizedValue);
+                  validateNonNegative(sanitizedValue, "Mileage", setMileageError);
+                }}
+                className={mileageError ? "border-red-500" : ""}
+                placeholder="e.g., 15000"
               />
+              {mileageError && (
+                <p className="text-sm text-red-600 mt-1">{mileageError}</p>
+              )}
             </div>
             <div>
               <Label>Efficiency (km/kWh)</Label>
               <Input
                 type="number"
+                min="0"
+                step="0.1"
                 value={efficiency}
-                onChange={(e) => setEfficiency(e.target.value)}
+                onChange={(e) => {
+                  const sanitizedValue = toNonNegativeString(e.target.value);
+                  setEfficiency(sanitizedValue);
+                  validateNonNegative(sanitizedValue, "Efficiency", setEfficiencyError);
+                }}
+                className={efficiencyError ? "border-red-500" : ""}
+                placeholder="e.g., 6.5"
               />
+              {efficiencyError && (
+                <p className="text-sm text-red-600 mt-1">{efficiencyError}</p>
+              )}
             </div>
           </div>
 
@@ -1091,9 +1362,20 @@ const { toast } = useToast();
               <Label>Seating Capacity</Label>
               <Input
                 type="number"
+                min="1"
+                step="1"
                 value={seating}
-                onChange={(e) => setSeating(e.target.value)}
+                onChange={(e) => {
+                  const sanitizedValue = toNonNegativeString(e.target.value);
+                  setSeating(sanitizedValue);
+                  validateNonNegative(sanitizedValue, "Seating Capacity", setSeatingError);
+                }}
+                className={seatingError ? "border-red-500" : ""}
+                placeholder="e.g., 5"
               />
+              {seatingError && (
+                <p className="text-sm text-red-600 mt-1">{seatingError}</p>
+              )}
             </div>
           </div>
 
@@ -1131,7 +1413,7 @@ const { toast } = useToast();
             <Link href="/vehicles">
               <Button variant="outline">Cancel</Button>
             </Link>
-            <Button onClick={onSubmit} disabled={submitting}>
+            <Button onClick={onSubmit} disabled={submitting || !isFormValid}>
               <Save className="w-4 h-4 mr-2" />
               {submitting ? "Saving…" : "Add Vehicle"}
             </Button>

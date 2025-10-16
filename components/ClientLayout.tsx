@@ -18,6 +18,7 @@ export default function ClientLayout({
     if (typeof window === 'undefined') return;
 
     const handleUnauthorized = () => {
+      // Redirect unauthorized users back to login
       logout();
       router.push("/login");
     };

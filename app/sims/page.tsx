@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { listSIMCards, listSIMCardsSummary, deleteSIMCard } from "@/lib/api";
+import { fuzzySearch } from "@/lib/fuzzySearch";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,7 @@ interface Summary {
 export default function SIMCardListPage() {
   const [simCards, setSimCards] = useState<SIMCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>("");
 
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
@@ -62,6 +64,32 @@ export default function SIMCardListPage() {
   // Helper to fetch one page from server
   const fetchSIMCards = async (pageNum: number = 1) => {
     setLoading(true);
+    setError(""); // Clear any previous errors
+    
+    // First, try to check if we have authentication
+    const userStr = localStorage.getItem("user");
+    let hasAuth = false;
+    
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        hasAuth = !!user?.token;
+      } catch (e) {
+        console.error("Error parsing user from localStorage:", e);
+      }
+    }
+    
+    if (!hasAuth) {
+      const accessToken = localStorage.getItem("access_token");
+      hasAuth = !!accessToken;
+    }
+    
+    if (!hasAuth) {
+      setError("No authentication token found. Please log in again.");
+      setLoading(false);
+      return;
+    }
+    
     try {
       // Call API with page param
       const resp = await listSIMCards(pageNum);
@@ -70,23 +98,47 @@ export default function SIMCardListPage() {
       const rows: SIMCard[] = resp.results ?? resp.data ?? [];
       const count: number = resp.count ?? resp.total ?? 0;
 
-      // If you want client-side search fallback (server doesn't support search), filter here
+      // Apply fuzzy search filter
       let filtered = rows;
-      if (searchTerm && !resp.searchSupported) {
-        filtered = rows.filter(
-          (sim) =>
-            sim.sim_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            sim.iccid.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            sim.plan_name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+      if (searchTerm) {
+        filtered = fuzzySearch(rows, searchTerm, ['sim_id', 'iccid', 'plan_name', 'status'], {
+          threshold: 0.3,
+          minLength: 2
+        });
       }
 
       setSimCards(filtered);
       setTotalCount(count);
       setTotalPages(Math.max(1, Math.ceil(count / limit)));
       setPage(pageNum);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch SIM cards:", err);
+      console.error("Error details:", {
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        data: err.response?.data,
+        url: err.config?.url
+      });
+      
+      // Clear any existing data and show error
+      setSimCards([]);
+      setTotalCount(0);
+      setTotalPages(1);
+      
+      // If it's a 403 error, provide helpful guidance
+      if (err.response?.status === 403) {
+        console.warn("⚠️ Access denied to SIM cards API.");
+        setError("The SIM cards API is not accessible. This could be because: 1) The API endpoint doesn't exist yet, 2) Your account lacks permissions, or 3) The feature is not implemented. You can still add new SIM cards using the 'Add SIM Card' button.");
+      } else if (err.response?.status === 404) {
+        console.warn("⚠️ SIM cards API endpoint not found.");
+        setError("SIM cards API endpoint not found. The backend might not have this feature implemented yet. You can still add new SIM cards using the 'Add SIM Card' button.");
+      } else if (err.response?.status === 401) {
+        console.warn("⚠️ Authentication failed.");
+        setError("Authentication failed. Please log in again.");
+      } else {
+        // For other errors, show generic error
+        setError(`Failed to load SIM cards: ${err.response?.statusText || err.message}. Please try again or contact support.`);
+      }
     } finally {
       setLoading(false);
     }
@@ -103,8 +155,17 @@ export default function SIMCardListPage() {
     try {
       const resp = await listSIMCardsSummary();
       setSummary(resp);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch summary:", err);
+      console.error("Summary error details:", {
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        data: err.response?.data,
+        url: err.config?.url
+      });
+      
+      // Don't set summary data on error - let it remain null
+      console.warn("⚠️ SIM summary API not available.");
     }
   };
 
@@ -123,11 +184,33 @@ export default function SIMCardListPage() {
     if (!confirm("Are you sure you want to suspend this SIM?")) return;
     try {
       await api.post(`/api/fleet/sim-cards/${id}/suspend/`);
-      alert("SIM suspended successfully");
-      fetchSIMCards(page);
+      
+      // Show success message using toast instead of alert
+      toast({
+        title: "SIM suspended",
+        description: "The SIM card has been suspended successfully.",
+        variant: "default",
+      });
+      
+      // Immediately update the SIM status in local state for instant UI feedback
+      setSimCards(prevCards => 
+        prevCards.map(card => 
+          card.id === id ? { ...card, status: 'suspended' } : card
+        )
+      );
+      
+      // Refresh the table data after a short delay to ensure backend is updated
+      setTimeout(() => {
+        fetchSIMCards(page);
+      }, 500);
+      
     } catch (err) {
       console.error(err);
-      alert("Failed to suspend SIM");
+      toast({
+        title: "Failed to suspend SIM",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -186,15 +269,49 @@ export default function SIMCardListPage() {
     if (!confirm("Are you sure you want to delete this SIM card?")) return;
 
     try {
-      await deleteSIMCard(id); // call your API
+      console.log("🗑️ Attempting to delete SIM card with ID:", id);
+      const response = await deleteSIMCard(id);
+      console.log("✅ Delete API response:", response);
+      
+      // Show success message
       toast({
         title: "SIM deleted",
         description: "The SIM card has been deleted successfully.",
         variant: "destructive", // optional: shows red toast
       });
-      fetchSIMCards(page); // refresh the table
+
+      // Immediately remove the SIM from local state for instant UI feedback
+      setSimCards(prevCards => {
+        const filtered = prevCards.filter(card => card.id !== id);
+        console.log("🔄 Updated SIM cards list:", filtered.length, "remaining");
+        return filtered;
+      });
+      
+      // Update the count
+      setTotalCount(prevCount => {
+        const newCount = prevCount - 1;
+        console.log("📊 Updated total count:", newCount);
+        return newCount;
+      });
+      
+      // Check if current page becomes empty after deletion
+      const remainingCards = simCards.length - 1;
+      if (remainingCards === 0 && page > 1) {
+        // Go to previous page if current page becomes empty
+        setPage(prevPage => Math.max(1, prevPage - 1));
+      }
+      
+      // Refresh summary data
+      await fetchSummary();
+      
+      // Refresh the table data after a short delay to ensure backend is updated
+      setTimeout(() => {
+        console.log("🔄 Refreshing table data after deletion");
+        fetchSIMCards(page);
+      }, 1000); // Increased delay to 1 second
+      
     } catch (err) {
-      console.error(err);
+      console.error("❌ Error deleting SIM:", err);
       toast({
         title: "Failed to delete SIM",
         description: "Something went wrong. Please try again.",
@@ -217,6 +334,51 @@ export default function SIMCardListPage() {
           </Button>
         </Link>
       </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
+          <div className="flex justify-between items-start">
+            <div className="flex-1">
+              <p className="font-medium">API Access Issue:</p>
+              <p className="text-sm mt-1">{error}</p>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                setError("");
+                fetchSIMCards(page);
+                fetchSummary();
+              }}
+              className="ml-4 text-red-600 border-red-300 hover:bg-red-100"
+            >
+              Retry
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Info Message for API Issues */}
+      {error && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <svg className="w-5 h-5 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <p className="font-medium">What you can do:</p>
+              <ul className="text-sm mt-1 space-y-1">
+                <li>• Use the <strong>"Add SIM Card"</strong> button to create new SIM cards</li>
+                <li>• Contact your administrator to enable SIM management API access</li>
+                <li>• Check if the backend has SIM management endpoints implemented</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Summary Cards */}
       {summary && (
@@ -319,7 +481,14 @@ export default function SIMCardListPage() {
                           colSpan={9}
                           className="text-center py-8 text-gray-500"
                         >
-                          No SIM cards found.
+                          {error ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <p>Unable to load SIM cards due to API access issue.</p>
+                              <p className="text-sm">The 'Add SIM Card' button above should still work to create new SIM cards.</p>
+                            </div>
+                          ) : (
+                            "No SIM cards found."
+                          )}
                         </TableCell>
                       </TableRow>
                     ) : (

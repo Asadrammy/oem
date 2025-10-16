@@ -868,13 +868,52 @@ export default function VehicleDashboardPanel({ vehicleId }: { vehicleId: number
                   })}
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="time" stroke="#6b7280" />
+                <XAxis 
+                  dataKey="time" 
+                  stroke="#6b7280"
+                  tickFormatter={(value) => {
+                    // Format the time label to show date and time
+                    try {
+                      const date = new Date(value);
+                      if (!isNaN(date.getTime())) {
+                        return date.toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        });
+                      }
+                      return value;
+                    } catch {
+                      return value;
+                    }
+                  }}
+                />
                 <YAxis stroke="#6b7280" />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "white",
                     borderRadius: "8px",
                     border: "1px solid #e5e7eb",
+                  }}
+                  labelFormatter={(value) => {
+                    // Format tooltip label to show full date and time
+                    try {
+                      const date = new Date(value);
+                      if (!isNaN(date.getTime())) {
+                        return date.toLocaleString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit'
+                        });
+                      }
+                      return value;
+                    } catch {
+                      return value;
+                    }
                   }}
                 />
                 {selectedKeys.map((k) => {

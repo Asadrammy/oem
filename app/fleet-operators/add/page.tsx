@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createFleetOperator } from "@/lib/api";
@@ -22,6 +22,7 @@ export default function AddFleetOperatorPage() {
   const router = useRouter();
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [isFormValid, setIsFormValid] = useState(false);
 
   // Form state
   const [name, setName] = useState("");
@@ -65,6 +66,16 @@ export default function AddFleetOperatorPage() {
     updated[index][field] = value;
     setMetadataPairs(updated);
   };
+
+  // Form validation
+  useEffect(() => {
+    const valid = name.trim() !== "" && 
+                  code.trim() !== "" && 
+                  contactPhone.trim() !== "" && 
+                  contactEmail.trim() !== "" && 
+                  address.trim() !== "";
+    setIsFormValid(valid);
+  }, [name, code, contactPhone, contactEmail, address]);
 
   const onSubmit = async () => {
     setSubmitting(true);
@@ -327,14 +338,7 @@ export default function AddFleetOperatorPage() {
             </Link>
             <Button
               onClick={onSubmit}
-              disabled={
-                submitting ||
-                !name ||
-                !code ||
-                !address ||
-                !contactEmail ||
-                !contactPhone
-              }
+              disabled={!isFormValid || submitting}
             >
               <Save className="w-4 h-4 mr-2" />
               {submitting ? "Saving…" : "Add Fleet Operator"}

@@ -46,6 +46,11 @@ export default function EditUserPage() {
   const [preferredTheme, setPreferredTheme] = useState("light");
   const [fleetOperator, setFleetOperator] = useState<number | null>(null);
 
+  // Validation state
+  const [phoneError, setPhoneError] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [emailError, setEmailError] = useState("");
+
   const [fleetOperators, setFleetOperators] = useState<FleetOperator[]>([]);
   const [userGroups, setUserGroups] = useState<Array<{id: number, name: string}>>([]);
 
@@ -83,13 +88,80 @@ export default function EditUserPage() {
         setFleetOperators(opsResp.results || []);
         setUserGroups(groupsResp || []);
       } catch (e: any) {
+        console.error("Error fetching user data:", e);
+        if (e?.response?.status === 404) {
+          router.push('/not-found');
+          return;
+        }
         setErr(e.message || "Failed to load data");
       } finally {
         setLoading(false);
       }
     }
     fetchData();
-  }, [userId]);
+  }, [userId, router]);
+
+  // Validation functions
+  const validatePhoneNumber = (phone: string): boolean => {
+    if (!phone.trim()) return true; // Optional field
+    // Remove all non-digit characters for validation
+    const digitsOnly = phone.replace(/\D/g, '');
+    // Must be between 10-15 digits (international format)
+    return digitsOnly.length >= 10 && digitsOnly.length <= 15;
+  };
+
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePIN = (pin: string): boolean => {
+    if (!pin.trim()) return true; // Optional field
+    // PIN should be 4-6 digits
+    const pinRegex = /^\d{4,6}$/;
+    return pinRegex.test(pin);
+  };
+
+  // Input handlers with validation
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    // Allow only digits, spaces, hyphens, and parentheses
+    value = value.replace(/[^\d\s\-\(\)]/g, '');
+    setPhoneNumber(value);
+    
+    // Real-time validation
+    if (value.trim() && !validatePhoneNumber(value)) {
+      setPhoneError("Phone number must be 10-15 digits");
+    } else {
+      setPhoneError("");
+    }
+  };
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setEmail(value);
+    
+    // Real-time validation
+    if (value.trim() && !validateEmail(value)) {
+      setEmailError("Please enter a valid email address");
+    } else {
+      setEmailError("");
+    }
+  };
+
+  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    // Allow only digits
+    value = value.replace(/\D/g, '');
+    setPin(value);
+    
+    // Real-time validation
+    if (value.trim() && !validatePIN(value)) {
+      setPinError("PIN must be 4-6 digits");
+    } else {
+      setPinError("");
+    }
+  };
 
   const onSubmit = async () => {
     setErr("");
@@ -118,6 +190,36 @@ export default function EditUserPage() {
       toast({
         title: "Error", 
         description: "Email is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Email format validation
+    if (!validateEmail(email)) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Phone number validation
+    if (phoneNumber.trim() && !validatePhoneNumber(phoneNumber)) {
+      toast({
+        title: "Error",
+        description: "Phone number must be 10-15 digits long",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // PIN validation
+    if (pin.trim() && !validatePIN(pin)) {
+      toast({
+        title: "Error",
+        description: "PIN must be 4-6 digits",
         variant: "destructive",
       });
       return;
@@ -221,8 +323,10 @@ export default function EditUserPage() {
               <Input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={handleEmailChange}
+                className={emailError ? "border-red-500" : ""}
               />
+              {emailError && <p className="text-red-500 text-sm mt-1">{emailError}</p>}
             </div>
           </div>
 
@@ -254,8 +358,12 @@ export default function EditUserPage() {
                   <Label>Phone Number</Label>
                   <Input
                     value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    onChange={handlePhoneChange}
+                    placeholder="e.g., +1 (555) 123-4567 or 5551234567"
+                    className={phoneError ? "border-red-500" : ""}
                   />
+                  {phoneError && <p className="text-red-500 text-sm mt-1">{phoneError}</p>}
+                  <p className="text-gray-500 text-xs mt-1">Enter 10-15 digits (international format supported)</p>
                 </div>
                 <div>
                   <Label>City</Label>
@@ -276,7 +384,14 @@ export default function EditUserPage() {
                 </div>
                 <div>
                   <Label>PIN</Label>
-                  <Input value={pin} onChange={(e) => setPin(e.target.value)} />
+                  <Input 
+                    value={pin} 
+                    onChange={handlePinChange}
+                    placeholder="4-6 digits"
+                    maxLength={6}
+                    className={pinError ? "border-red-500" : ""}
+                  />
+                  {pinError && <p className="text-red-500 text-sm mt-1">{pinError}</p>}
                 </div>
               </div>
 

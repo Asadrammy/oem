@@ -48,6 +48,14 @@ export default function AddOBDDevicePage() {
 
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [isFormValid, setIsFormValid] = useState(false);
+
+  // Validation error states
+  const [deviceIdError, setDeviceIdError] = useState("");
+  const [serialNumberError, setSerialNumberError] = useState("");
+  const [firmwareError, setFirmwareError] = useState("");
+  const [reportIntervalError, setReportIntervalError] = useState("");
+  const [canBaudError, setCanBaudError] = useState("");
 
   // Load fleet operators on component mount
   useEffect(() => {
@@ -72,6 +80,119 @@ export default function AddOBDDevicePage() {
     }
   }, [fleetId]);
 
+  // Validation functions
+  const validateDeviceId = (value: string) => {
+    if (!value.trim()) {
+      setDeviceIdError("Device ID is required");
+      return false;
+    }
+    
+    // Device ID should follow pattern: OBD-XXXX or OBD-XXXX-XXX
+    const deviceIdPattern = /^OBD-\d{4}(-\w{3})?$/;
+    if (!deviceIdPattern.test(value)) {
+      setDeviceIdError("Device ID must follow format: OBD-XXXX or OBD-XXXX-XXX (e.g., OBD-6002)");
+      return false;
+    }
+    
+    setDeviceIdError("");
+    return true;
+  };
+
+  const validateSerialNumber = (value: string) => {
+    if (!value.trim()) {
+      setSerialNumberError("Serial Number is required");
+      return false;
+    }
+    
+    // Serial Number should follow pattern: SN-XXXX-XXXX or SN-XXXX-XXX
+    const serialPattern = /^SN-\w{4}-\w{3,4}$/;
+    if (!serialPattern.test(value)) {
+      setSerialNumberError("Serial Number must follow format: SN-XXXX-XXXX (e.g., SN-6002-AX02)");
+      return false;
+    }
+    
+    setSerialNumberError("");
+    return true;
+  };
+
+  const validateFirmwareVersion = (value: string) => {
+    if (!value.trim()) {
+      setFirmwareError("Firmware Version is required");
+      return false;
+    }
+    
+    // Firmware version should follow semantic versioning: X.Y.Z or X.Y
+    const firmwarePattern = /^\d+\.\d+(\.\d+)?$/;
+    if (!firmwarePattern.test(value)) {
+      setFirmwareError("Firmware Version must follow format: X.Y.Z or X.Y (e.g., 1.4.5)");
+      return false;
+    }
+    
+    setFirmwareError("");
+    return true;
+  };
+
+  const validateReportInterval = (value: string) => {
+    if (!value.trim()) {
+      setReportIntervalError("Report Interval is required");
+      return false;
+    }
+    
+    const num = parseInt(value);
+    if (isNaN(num) || num < 1) {
+      setReportIntervalError("Report Interval must be a positive integer (minimum 1 second)");
+      return false;
+    }
+    
+    if (num > 3600) {
+      setReportIntervalError("Report Interval cannot exceed 3600 seconds (1 hour)");
+      return false;
+    }
+    
+    setReportIntervalError("");
+    return true;
+  };
+
+  const validateCanBaudRate = (value: string) => {
+    if (!value.trim()) {
+      setCanBaudError("CAN Baud Rate is required");
+      return false;
+    }
+    
+    const num = parseInt(value);
+    if (isNaN(num) || num < 1000) {
+      setCanBaudError("CAN Baud Rate must be at least 1000 bps");
+      return false;
+    }
+    
+    // Common CAN baud rates: 125000, 250000, 500000, 1000000
+    const validBaudRates = [125000, 250000, 500000, 1000000];
+    if (!validBaudRates.includes(num)) {
+      setCanBaudError("CAN Baud Rate must be one of: 125000, 250000, 500000, or 1000000");
+      return false;
+    }
+    
+    setCanBaudError("");
+    return true;
+  };
+
+  // Form validation
+  useEffect(() => {
+    const valid = deviceId.trim() !== "" && 
+                  serialNumber.trim() !== "" && 
+                  fleetId !== undefined && 
+                  vehicleId !== undefined && 
+                  firmwareVersion.trim() !== "" && 
+                  reportInterval.trim() !== "" && 
+                  canBaudRate.trim() !== "" &&
+                  validateDeviceId(deviceId) &&
+                  validateSerialNumber(serialNumber) &&
+                  validateFirmwareVersion(firmwareVersion) &&
+                  validateReportInterval(reportInterval) &&
+                  validateCanBaudRate(canBaudRate);
+    setIsFormValid(valid);
+  }, [deviceId, serialNumber, fleetId, vehicleId, firmwareVersion, reportInterval, canBaudRate]);
+
   // Create a stable reference to prevent unnecessary re-renders
   const fetchVehiclesForFleet = useCallback(
     async (page: number = 1) => {
@@ -93,6 +214,13 @@ export default function AddOBDDevicePage() {
   const onSubmit = async () => {
     setErr("");
     setSubmitting(true);
+
+    // Final validation before submission
+    if (!isFormValid) {
+      setErr("Please fix all validation errors before submitting");
+      setSubmitting(false);
+      return;
+    }
 
     const payload = {
       device_id: deviceId,
@@ -143,20 +271,49 @@ export default function AddOBDDevicePage() {
           <CardTitle>OBD Device Information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {err && <div className="text-red-600">{err}</div>}
+          
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+            <h4 className="text-sm font-medium text-blue-800 mb-2">OBD Device Data Format Guidelines</h4>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>• <strong>Device ID:</strong> Must follow format OBD-XXXX (e.g., OBD-6002)</li>
+              <li>• <strong>Serial Number:</strong> Must follow format SN-XXXX-XXXX (e.g., SN-6002-AX02)</li>
+              <li>• <strong>Firmware Version:</strong> Must follow semantic versioning X.Y.Z (e.g., 1.4.5)</li>
+              <li>• <strong>Report Interval:</strong> 1-3600 seconds</li>
+              <li>• <strong>CAN Baud Rate:</strong> Must be 125000, 250000, 500000, or 1000000</li>
+            </ul>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Device ID *</Label>
               <Input
                 value={deviceId}
-                onChange={(e) => setDeviceId(e.target.value)}
+                onChange={(e) => {
+                  setDeviceId(e.target.value.toUpperCase());
+                  validateDeviceId(e.target.value);
+                }}
+                className={deviceIdError ? "border-red-500" : ""}
+                placeholder="e.g., OBD-6002"
               />
+              {deviceIdError && (
+                <p className="text-sm text-red-600 mt-1">{deviceIdError}</p>
+              )}
             </div>
             <div>
               <Label>Serial Number *</Label>
               <Input
                 value={serialNumber}
-                onChange={(e) => setSerialNumber(e.target.value)}
+                onChange={(e) => {
+                  setSerialNumber(e.target.value.toUpperCase());
+                  validateSerialNumber(e.target.value);
+                }}
+                className={serialNumberError ? "border-red-500" : ""}
+                placeholder="e.g., SN-6002-AX02"
               />
+              {serialNumberError && (
+                <p className="text-sm text-red-600 mt-1">{serialNumberError}</p>
+              )}
             </div>
           </div>
 
@@ -190,8 +347,16 @@ export default function AddOBDDevicePage() {
               <Label>Firmware Version *</Label>
               <Input
                 value={firmwareVersion}
-                onChange={(e) => setFirmwareVersion(e.target.value)}
+                onChange={(e) => {
+                  setFirmwareVersion(e.target.value);
+                  validateFirmwareVersion(e.target.value);
+                }}
+                className={firmwareError ? "border-red-500" : ""}
+                placeholder="e.g., 1.4.5"
               />
+              {firmwareError && (
+                <p className="text-sm text-red-600 mt-1">{firmwareError}</p>
+              )}
             </div>
           </div>
 
@@ -221,20 +386,42 @@ export default function AddOBDDevicePage() {
               <Label>Report Interval (sec) *</Label>
               <Input
                 type="number"
+                min="1"
+                max="3600"
                 value={reportInterval}
-                onChange={(e) => setReportInterval(e.target.value)}
+                onChange={(e) => {
+                  setReportInterval(e.target.value);
+                  validateReportInterval(e.target.value);
+                }}
+                className={reportIntervalError ? "border-red-500" : ""}
+                placeholder="e.g., 90"
               />
+              {reportIntervalError && (
+                <p className="text-sm text-red-600 mt-1">{reportIntervalError}</p>
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>CAN Baud Rate *</Label>
-              <Input
-                type="number"
-                value={canBaudRate}
-                onChange={(e) => setCanBaudRate(e.target.value)}
-              />
+              <Select value={canBaudRate} onValueChange={(value) => {
+                setCanBaudRate(value);
+                validateCanBaudRate(value);
+              }}>
+                <SelectTrigger className={canBaudError ? "border-red-500" : ""}>
+                  <SelectValue placeholder="Select CAN Baud Rate" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="125000">125,000 bps</SelectItem>
+                  <SelectItem value="250000">250,000 bps</SelectItem>
+                  <SelectItem value="500000">500,000 bps</SelectItem>
+                  <SelectItem value="1000000">1,000,000 bps</SelectItem>
+                </SelectContent>
+              </Select>
+              {canBaudError && (
+                <p className="text-sm text-red-600 mt-1">{canBaudError}</p>
+              )}
             </div>
             <div>
               <Label>Model</Label>
@@ -254,7 +441,7 @@ export default function AddOBDDevicePage() {
             <Link href="/obd-device">
               <Button variant="outline">Cancel</Button>
             </Link>
-            <Button onClick={onSubmit} disabled={submitting}>
+            <Button onClick={onSubmit} disabled={!isFormValid || submitting}>
               <Save className="w-4 h-4 mr-2" />
               {submitting ? "Saving…" : "Add Device"}
             </Button>

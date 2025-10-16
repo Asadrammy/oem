@@ -274,7 +274,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, Search, Download, Filter, RotateCcw } from "lucide-react";
+import { Eye, Search, Download, Filter, RotateCcw, Calendar as CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -286,14 +286,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { SegmentedDateInput } from "@/components/ui/segmented-date-input";
 import Link from "next/link";
 import { listOBDTelemetry } from "@/lib/api";
+import { fuzzySearch } from "@/lib/fuzzySearch";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 type OBDTelemetry = {
   id: number;
   trip: number | null;
   trip_id?: number | null;
+  // Alternative possible field names for trip_id
+  tripId?: number | null;
+  trip_number?: number | null;
+  journey_id?: number | null;
   timestamp: string;
   latitude: number | null;
   longitude: number | null;
@@ -335,9 +343,26 @@ export default function OBDTelemetryPage() {
   const [query, setQuery] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Client-side fuzzy search filter
+  const filteredItems = useMemo(() => {
+    if (!searchTerm.trim()) return items;
+    
+    return fuzzySearch(items, searchTerm, [
+      'vehicle_vin', 
+      'trip_id', 
+      'error_codes', 
+      'timestamp'
+    ], {
+      threshold: 0.3,
+      minLength: 2
+    });
+  }, [items, searchTerm]);
+
   // Filters (UI controls only; URL is the source of truth for fetch)
   const [timestampAfter, setTimestampAfter] = useState<string>("");
   const [timestampBefore, setTimestampBefore] = useState<string>("");
+  const [openAfter, setOpenAfter] = useState(false);
+  const [openBefore, setOpenBefore] = useState(false);
   const [trip, setTrip] = useState<string>("");
   const [tripId, setTripId] = useState<string>("");
   const [vehicle, setVehicle] = useState<string>(searchParams.get("vehicle") ?? "");
@@ -378,20 +403,22 @@ export default function OBDTelemetryPage() {
         p.set(k, String(v));
       };
 
-      assign("timestamp_after", timestampAfter);
-      assign("timestamp_before", timestampBefore);
+      const normAfter = toISOIfValid(timestampAfter);
+      const normBefore = toISOIfValid(timestampBefore);
+      if (normAfter) assign("timestamp_after", normAfter);
+      if (normBefore) assign("timestamp_before", normBefore);
       assign("trip", trip);
       assign("trip_id", tripId);
       assign("vehicle", vehicle);
       assign("vehicle_vin", vehicleVin);
-      assign("min_speed", minSpeed);
-      assign("max_speed", maxSpeed);
-      assign("min_battery", minBattery);
-      assign("max_battery", maxBattery);
+      assign("min_speed", toNonNegativeString(minSpeed));
+      assign("max_speed", toNonNegativeString(maxSpeed));
+      assign("min_battery", toNonNegativeString(minBattery));
+      assign("max_battery", toNonNegativeString(maxBattery));
       assign("min_motor_temp", minMotorTemp);
       assign("max_motor_temp", maxMotorTemp);
-      assign("min_range", minRange);
-      assign("max_range", maxRange);
+      assign("min_range", toNonNegativeString(minRange));
+      assign("max_range", toNonNegativeString(maxRange));
       if (hasErrorCodes) assign("has_error_codes", hasErrorCodes);
       if (aggregated) assign("aggregated", true);
       if (topErrors) assign("top_errors", true);
@@ -435,6 +462,57 @@ export default function OBDTelemetryPage() {
       sortDir,
     ]
   );
+
+  // Helpers: parse and format date/time flexibly (supports dd-mm-yyyy and yyyy-mm-dd)
+  const toISOIfValid = (raw: string): string => {
+    const v = raw.trim();
+    if (!v) return "";
+    // Accept dd-mm-yyyy or dd/mm/yyyy optionally with time hh:mm
+    const dm = v.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/);
+    if (dm) {
+      const d = Number(dm[1]);
+      const m = Number(dm[2]) - 1;
+      const y = Number(dm[3]);
+      const hh = dm[4] ? Number(dm[4]) : 0;
+      const mm = dm[5] ? Number(dm[5]) : 0;
+      const date = new Date(y, m, d, hh, mm);
+      if (!isNaN(date.getTime())) return date.toISOString();
+    }
+    // Try native Date parsing
+    const dt = new Date(v);
+    if (!isNaN(dt.getTime())) return dt.toISOString();
+    return "";
+  };
+
+  const formatDisplay = (raw: string): string => {
+    if (!raw) return "";
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return raw;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  };
+
+  // Enforce non-negative numbers for speed/battery/range
+  const toNonNegativeString = (val: string): string => {
+    if (val === "" || val === undefined || val === null) return "";
+    const n = Number(val);
+    if (Number.isNaN(n)) return "";
+    return String(n < 0 ? 0 : n);
+  };
+
+  // Helper function to get trip_id from various possible field names
+  const getTripId = (record: OBDTelemetry): string => {
+    // Check various possible field names for trip_id
+    if (record.trip_id !== null && record.trip_id !== undefined) return String(record.trip_id);
+    if (record.tripId !== null && record.tripId !== undefined) return String(record.tripId);
+    if (record.trip_number !== null && record.trip_number !== undefined) return String(record.trip_number);
+    if (record.journey_id !== null && record.journey_id !== undefined) return String(record.journey_id);
+    
+    // If no specific trip_id field found, return the trip value as fallback
+    if (record.trip !== null && record.trip !== undefined) return String(record.trip);
+    
+    return "—";
+  };
 
   // Helper: extract fetch params directly from URL snapshot (single source of truth)
   const getFetchParamsFromUrl = useCallback(() => {
@@ -524,6 +602,15 @@ export default function OBDTelemetryPage() {
         const rows: OBDTelemetry[] = Array.isArray(resp) ? resp : resp?.results ?? [];
         const count: number = Array.isArray(resp) ? rows.length : resp?.count ?? rows.length;
 
+        // Debug: Log the first few records to see what data is available
+        if (rows.length > 0) {
+          console.log("🔍 OBD Telemetry API Response Debug:");
+          console.log("First record:", rows[0]);
+          console.log("Available fields:", Object.keys(rows[0]));
+          console.log("trip_id value:", rows[0].trip_id);
+          console.log("trip value:", rows[0].trip);
+        }
+
         setItems(rows);
         setTotalCount(count);
         setPage(pageNum);
@@ -576,16 +663,20 @@ export default function OBDTelemetryPage() {
     router.push(`${pathname}?${p.toString()}`);
   }, [router, pathname]);
 
-  // Quick client-side filter for current page rows
+  // Quick client-side filter for current page rows using fuzzy search
   const filtered = useMemo(() => {
     if (!searchTerm.trim()) return items;
-    const q = searchTerm.toLowerCase();
-    return items.filter(
-      (t) =>
-        (t.error_codes || "").toLowerCase().includes(q) ||
-        String(t.vehicle_id ?? "").includes(q) ||
-        String(t.trip ?? "").includes(q)
-    );
+    
+    return fuzzySearch(items, searchTerm, [
+      'vehicle_id', 
+      'trip', 
+      'trip_id', 
+      'error_codes',
+      'vehicle_vin'
+    ], {
+      threshold: 0.3,
+      minLength: 2
+    });
   }, [items, searchTerm]);
 
   // Pagination controls -> push URL; fetch runs from effect
@@ -631,6 +722,7 @@ export default function OBDTelemetryPage() {
       const headers = [
         "id",
         "trip",
+        "trip_id",
         "timestamp",
         "latitude",
         "longitude",
@@ -657,6 +749,7 @@ export default function OBDTelemetryPage() {
           [
             t.id,
             t.trip ?? "",
+            getTripId(t),
             t.timestamp,
             t.latitude ?? "",
             t.longitude ?? "",
@@ -720,17 +813,28 @@ export default function OBDTelemetryPage() {
         <CardContent className="p-4 space-y-4">
           {/* Row 1: time + trip + vehicle */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-            <Input
-              type="datetime-local"
-              placeholder="timestamp_after"
-              value={timestampAfter}
-              onChange={(e) => setTimestampAfter(e.target.value)}
+            {/* Timestamp After - segmented date input */}
+            <SegmentedDateInput
+              value={formatDisplay(timestampAfter)}
+              onChange={(value) => {
+                const iso = toISOIfValid(value);
+                setTimestampAfter(iso || value);
+              }}
+              placeholder="dd/mm/yyyy"
+              open={openAfter}
+              onOpenChange={setOpenAfter}
             />
-            <Input
-              type="datetime-local"
-              placeholder="timestamp_before"
-              value={timestampBefore}
-              onChange={(e) => setTimestampBefore(e.target.value)}
+
+            {/* Timestamp Before - segmented date input */}
+            <SegmentedDateInput
+              value={formatDisplay(timestampBefore)}
+              onChange={(value) => {
+                const iso = toISOIfValid(value);
+                setTimestampBefore(iso || value);
+              }}
+              placeholder="dd/mm/yyyy"
+              open={openBefore}
+              onOpenChange={setOpenBefore}
             />
             <Input placeholder="trip" value={trip} onChange={(e) => setTrip(e.target.value)} />
             <Input placeholder="trip_id" value={tripId} onChange={(e) => setTripId(e.target.value)} />
@@ -752,31 +856,31 @@ export default function OBDTelemetryPage() {
               type="number"
               placeholder="min_speed"
               value={minSpeed}
-              onChange={(e) => setMinSpeed(e.target.value)}
+              onChange={(e) => setMinSpeed(toNonNegativeString(e.target.value))}
             />
             <Input
               type="number"
               placeholder="max_speed"
               value={maxSpeed}
-              onChange={(e) => setMaxSpeed(e.target.value)}
+              onChange={(e) => setMaxSpeed(toNonNegativeString(e.target.value))}
             />
             <Input
               type="number"
               placeholder="min_battery"
               value={minBattery}
-              onChange={(e) => setMinBattery(e.target.value)}
+              onChange={(e) => setMinBattery(toNonNegativeString(e.target.value))}
             />
             <Input
               type="number"
               placeholder="max_battery"
               value={maxBattery}
-              onChange={(e) => setMaxBattery(e.target.value)}
+              onChange={(e) => setMaxBattery(toNonNegativeString(e.target.value))}
             />
             <Input
               type="number"
               placeholder="min_range"
               value={minRange}
-              onChange={(e) => setMinRange(e.target.value)}
+              onChange={(e) => setMinRange(toNonNegativeString(e.target.value))}
             />
           </div>
 
@@ -785,11 +889,11 @@ export default function OBDTelemetryPage() {
               type="number"
               placeholder="max_range"
               value={maxRange}
-              onChange={(e) => setMaxRange(e.target.value)}
+              onChange={(e) => setMaxRange(toNonNegativeString(e.target.value))}
             />
             <Input
               type="number"
-              placeholder="min_motor_temp"
+              placeholder="Min Motor Temperature"
               value={minMotorTemp}
               onChange={(e) => setMinMotorTemp(e.target.value)}
             />
@@ -891,6 +995,7 @@ export default function OBDTelemetryPage() {
                 <TableRow>
                   <TableHead>Vehicle</TableHead>
                   <TableHead>Trip</TableHead>
+                  <TableHead>Trip ID</TableHead>
                   <TableHead>Timestamp</TableHead>
                   <TableHead>Lat</TableHead>
                   <TableHead>Lng</TableHead>
@@ -905,18 +1010,19 @@ export default function OBDTelemetryPage() {
               <TableBody>
                 {loading && (
                   <TableRow>
-                    <TableCell colSpan={12}>Loading…</TableCell>
+                    <TableCell colSpan={13}>Loading…</TableCell>
                   </TableRow>
                 )}
                 {!loading && filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={12}>No telemetry found</TableCell>
+                    <TableCell colSpan={13}>No telemetry found</TableCell>
                   </TableRow>
                 )}
                 {filtered.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell>{t.vehicle_id ?? "—"}</TableCell>
                     <TableCell>{t.trip ?? "—"}</TableCell>
+                    <TableCell>{getTripId(t)}</TableCell>
                     <TableCell>{new Date(t.timestamp).toLocaleString()}</TableCell>
                     <TableCell>{t.latitude != null ? t.latitude.toFixed(5) : "—"}</TableCell>
                     <TableCell>{t.longitude != null ? t.longitude.toFixed(5) : "—"}</TableCell>

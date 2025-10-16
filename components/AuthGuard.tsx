@@ -29,6 +29,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     // Only run on client side to avoid hydration issues
     if (typeof window === 'undefined') return;
     
+    // Enforce login
     if (!user || !user.token) {
       router.replace("/login");
       return;

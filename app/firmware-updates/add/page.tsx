@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createFirmwareUpdates, listVehiclesType } from "@/lib/api";
+import api from "@/lib/api"; // For debugging API URL
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ export default function AddFirmwarePage() {
   const router = useRouter();
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [isFormValid, setIsFormValid] = useState(false);
 
   // Form state
   const [component, setComponent] = useState("obd");
@@ -53,9 +55,46 @@ export default function AddFirmwarePage() {
     fetchVehicleTypes();
   }, []);
 
+  // Form validation
+  useEffect(() => {
+    const valid = component.trim() !== "" && 
+                  version.trim() !== "" && 
+                  description.trim() !== "" && 
+                  releaseDate !== "" && 
+                  file !== null;
+    setIsFormValid(valid);
+  }, [component, version, description, releaseDate, file]);
+
 const onSubmit = async () => {
   setSubmitting(true);
   setErr("");
+
+  // Check if user has valid authentication
+  const userStr = localStorage.getItem("user");
+  let hasValidToken = false;
+  
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      hasValidToken = !!user?.token;
+    } catch (e) {
+      console.error("Error parsing user from localStorage:", e);
+    }
+  }
+  
+  if (!hasValidToken) {
+    const accessToken = localStorage.getItem("access_token");
+    hasValidToken = !!accessToken;
+  }
+  
+  if (!hasValidToken) {
+    setErr("Your session has expired. Please log in again.");
+    setTimeout(() => {
+      window.location.href = "/login";
+    }, 2000);
+    setSubmitting(false);
+    return;
+  }
 
   try {
     if (!file) {
@@ -76,10 +115,55 @@ const onSubmit = async () => {
     formData.append("file", file);              // actual file
     formData.append("file_size", file.size.toString());
 
+    console.log("Firmware form data:", {
+      component,
+      version,
+      description,
+      release_date: releaseDate,
+      vehicle_type: selectedVehicleType,
+      priority,
+      file_name: file.name,
+      file_size: file.size
+    });
+
     await createFirmwareUpdates(formData);      // FormData, not JSON
     router.push("/firmware-updates");
   } catch (e: any) {
-    setErr(e.message || "Failed to create firmware");
+    console.error("Firmware creation error:", e);
+    console.error("Error details:", {
+      status: e.response?.status,
+      statusText: e.response?.statusText,
+      data: e.response?.data,
+      url: e.config?.url
+    });
+    
+    // Handle specific error cases
+    if (e.response?.status === 401) {
+      const errorData = e.response?.data;
+      if (errorData?.code === "token_not_valid" || errorData?.detail?.includes("token")) {
+        setErr("Your session has expired. Please log in again.");
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 3000);
+      } else {
+        setErr("Authentication failed. Please log in again.");
+      }
+    } else if (e.response?.status === 403) {
+      setErr("Access denied. You don't have permission to create firmware updates or the API endpoint doesn't exist.");
+    } else if (e.response?.status === 400) {
+      const errorData = e.response?.data;
+      if (errorData?.detail) {
+        setErr(`Validation error: ${errorData.detail}`);
+      } else if (errorData?.file) {
+        setErr(`File error: ${errorData.file.join(", ")}`);
+      } else {
+        setErr("Invalid data provided. Please check your input.");
+      }
+    } else if (e.response?.status >= 500) {
+      setErr("Server error. Please try again later or contact support.");
+    } else {
+      setErr(e.message || "Failed to create firmware update. Please try again.");
+    }
   } finally {
     setSubmitting(false);
   }
@@ -104,7 +188,15 @@ const onSubmit = async () => {
           <CardTitle>Firmware Information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {err && <div className="text-red-600">{err}</div>}
+          {err && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
+              <div className="font-medium">Error:</div>
+              <div className="text-sm mt-1">{err}</div>
+              <div className="text-xs mt-2 text-red-500">
+                Check the browser console for more details.
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -196,14 +288,19 @@ const onSubmit = async () => {
             </div>
           </div>
 
-          <div className="flex justify-end gap-4">
-            <Link href="/firmware">
-              <Button variant="outline">Cancel</Button>
-            </Link>
-            <Button onClick={onSubmit} disabled={submitting}>
-              <Save className="w-4 h-4 mr-2" />
-              {submitting ? "Saving…" : "Add Firmware"}
-            </Button>
+          <div className="flex justify-between items-center">
+            <div className="text-xs text-gray-500">
+              API URL: {api.defaults.baseURL}
+            </div>
+            <div className="flex gap-4">
+              <Link href="/firmware">
+                <Button variant="outline">Cancel</Button>
+              </Link>
+              <Button onClick={onSubmit} disabled={!isFormValid || submitting}>
+                <Save className="w-4 h-4 mr-2" />
+                {submitting ? "Saving…" : "Add Firmware"}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

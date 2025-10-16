@@ -5,12 +5,13 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Eye, Download, Plus, Trash2 } from "lucide-react";
+import { Search, Eye, Download, Plus, Trash2, Edit } from "lucide-react";
 import {
   listFirmwareUpdates,
   rollOutFirmwareUpdates,
   firmwareUpdatesDelete,
 } from "@/lib/api";
+import { fuzzySearch } from "@/lib/fuzzySearch";
 import {
   Table,
   TableBody,
@@ -56,14 +57,23 @@ export default function FirmwareUpdatesPage() {
       let rows: FirmwareUpdate[] = resp.results ?? [];
       let count: number = resp.count ?? rows.length;
 
-      // local search filter
+      // Deduplicate by component + version combination
+      const seen = new Set<string>();
+      rows = rows.filter((fw) => {
+        const key = `${fw.component}-${fw.version}`;
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+
+      // Apply fuzzy search filter
       if (searchTerm) {
-        rows = rows.filter((fw) =>
-          fw.version.toLowerCase().includes(searchTerm.toLowerCase())||
-          fw.status.toLowerCase().includes(searchTerm.toLowerCase())||
-          fw.component.toLowerCase().includes(searchTerm.toLowerCase())||
-          fw.release_date.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        rows = fuzzySearch(rows, searchTerm, ['version', 'status', 'component', 'release_date', 'description'], {
+          threshold: 0.3,
+          minLength: 2
+        });
       }
 
       setUpdates(rows);
@@ -184,6 +194,13 @@ export default function FirmwareUpdatesPage() {
                           <Link href={`/firmware-updates/${fw.id}`}>
                             <Button variant="ghost" size="sm">
                               <Eye className="w-4 h-4" />
+                            </Button>
+                          </Link>
+
+                          {/* Edit */}
+                          <Link href={`/firmware-updates/edit/${fw.id}`}>
+                            <Button variant="ghost" size="sm">
+                              <Edit className="w-4 h-4" />
                             </Button>
                           </Link>
 
