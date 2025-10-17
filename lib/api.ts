@@ -9,10 +9,35 @@ import axios, {
 } from "axios";
 import { getApiUrl, DEFAULT_API_BASE_URL } from "./config";
 
+// Retry configuration
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
+
+// Retry utility function
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const shouldRetry = (error: any, retryCount: number): boolean => {
+  // Don't retry if we've exceeded max retries
+  if (retryCount >= MAX_RETRIES) return false;
+  
+  // Don't retry on authentication errors (401)
+  if (error.response?.status === 401) return false;
+  
+  // Don't retry on client errors (4xx except 408, 429)
+  if (error.response?.status >= 400 && error.response?.status < 500) {
+    return error.response?.status === 408 || error.response?.status === 429;
+  }
+  
+  // Retry on network errors, timeouts, and server errors (5xx)
+  return !error.response || error.response?.status >= 500;
+};
+
 // ----------------- Axios instance -----------------
 let api: AxiosInstance = axios.create({
   baseURL: DEFAULT_API_BASE_URL,
   headers: { "Content-Type": "application/json" },
+  timeout: 30000, // 30 seconds timeout
+  withCredentials: true, // Include cookies for CORS
 });
 // ----------------- Set base URL dynamically -----------------
 export const setApiBaseUrl = (company: string) => {
@@ -75,6 +100,27 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config as any;
 
+    // Handle network errors
+    if (!error.response) {
+      console.error("🌐 Network error:", error.message);
+      return Promise.reject({
+        ...error,
+        message: "Network error. Please check your connection and try again.",
+        isNetworkError: true
+      });
+    }
+
+    // Handle timeout errors
+    if (error.code === 'ECONNABORTED') {
+      console.error("⏰ Request timeout:", error.message);
+      return Promise.reject({
+        ...error,
+        message: "Request timeout. Please try again.",
+        isTimeoutError: true
+      });
+    }
+
+    // Handle 401 authentication errors
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       
@@ -112,7 +158,43 @@ api.interceptors.response.use(
       }
     }
 
-    return Promise.reject(error);
+    // Handle other HTTP errors with better error messages
+    const status = error.response?.status;
+    const errorData = error.response?.data;
+    
+    let errorMessage = "An error occurred";
+    
+    switch (status) {
+      case 400:
+        errorMessage = errorData?.message || "Bad request. Please check your input.";
+        break;
+      case 403:
+        errorMessage = "Access denied. You don't have permission to perform this action.";
+        break;
+      case 404:
+        errorMessage = "Resource not found.";
+        break;
+      case 422:
+        errorMessage = errorData?.message || "Validation error. Please check your input.";
+        break;
+      case 500:
+        errorMessage = "Server error. Please try again later.";
+        break;
+      case 502:
+      case 503:
+      case 504:
+        errorMessage = "Service temporarily unavailable. Please try again later.";
+        break;
+      default:
+        errorMessage = errorData?.message || `HTTP ${status} error occurred.`;
+    }
+
+    return Promise.reject({
+      ...error,
+      message: errorMessage,
+      status,
+      data: errorData
+    });
   }
 );
 
@@ -753,14 +835,34 @@ export const suspendSIM = async (id: number) => {
 /**
  * ✅ GENERIC HELPERS
  */
-export const getRequest = async (url: string, params: any = {}) => {
-  const res = await api.get(url, { params });
+export const getRequest = async (url: string, params: any = {}, signal?: AbortSignal) => {
+  const res = await api.get(url, { params, signal });
   return res.data;
 };
 
-export const postRequest = async (url: string, data: any = {}) => {
-  const res = await api.post(url, data);
+export const postRequest = async (url: string, data: any = {}, signal?: AbortSignal) => {
+  const res = await api.post(url, data, { signal });
   return res.data;
+};
+
+// Request cancellation helper
+export const createAbortController = () => new AbortController();
+
+// Enhanced API call with retry logic
+export const apiCallWithRetry = async (
+  apiCall: () => Promise<any>,
+  retryCount: number = 0
+): Promise<any> => {
+  try {
+    return await apiCall();
+  } catch (error) {
+    if (shouldRetry(error, retryCount)) {
+      console.log(`🔄 Retrying API call (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      await sleep(RETRY_DELAY * Math.pow(2, retryCount)); // Exponential backoff
+      return apiCallWithRetry(apiCall, retryCount + 1);
+    }
+    throw error;
+  }
 };
 //alerts
 export const listAlerts = async (page: number = 1) => {
@@ -926,11 +1028,17 @@ export const updateFirmwareUpdates = async (id: number, data: any) => {
       headers: {
         "Content-Type": "multipart/form-data", // important for file uploads
       },
+      timeout: 60000, // 60 seconds for file uploads
     };
   }
 
-  const res = await api.put(`/api/fleet/firmware-updates/${id}/`, data, config);
-  return res.data;
+  try {
+    const res = await api.put(`/api/fleet/firmware-updates/${id}/`, data, config);
+    return res.data;
+  } catch (error) {
+    console.error("Firmware update error:", error);
+    throw error;
+  }
 };
 
 export default api;
