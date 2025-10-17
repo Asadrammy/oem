@@ -422,7 +422,7 @@ export function AppSidebar() {
 
         {/* Global Search */}
         <div className="mt-4">
-          <GlobalSearch placeholder="Search vehicles, users, devices..." />
+          <GlobalSearch placeholder="Search" />
         </div>
       </SidebarHeader>
 

@@ -33,7 +33,7 @@ interface GlobalSearchProps {
 }
 
 export default function GlobalSearch({ 
-  placeholder = "Search vehicles, users, devices, alerts...", 
+  placeholder = "Search", 
   className = "" 
 }: GlobalSearchProps) {
   const [query, setQuery] = useState("");
