@@ -1,7 +1,9 @@
 // components/vehicle-analytics.tsx
+
 "use client";
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+
 import {
   LineChart,
   Line,
@@ -12,10 +14,16 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
+
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+
 import { Button } from "@/components/ui/button";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { Input } from "@/components/ui/input";
+
+import { SegmentedDateInput } from "@/components/ui/segmented-date-input";
 import { getVehicleHistory } from "@/lib/api";
 
 // UI keys -> API series keys
@@ -33,7 +41,7 @@ type HistoryResponse = {
   vehicle?: { id: number; vin: string };
   date_filter?: { start_date: string; end_date: string };
   stats?: Record<string, number>;
-  time_series_charts?: Record<string, Array<{ time_label: string; value: number }>>;
+  time_series_charts?: Record<string, Array<{ timestamp: string; date_label: string; time_label: string; value: number }>>;
   details?: any;
   raw?: Array<any>;
 };
@@ -49,7 +57,6 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
   }
 
   // Filters with defaults
-  const [dateRange, setDateRange] = useState<"today" | "10days" | "30days" | "90days">("30days");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [chartPoints, setChartPoints] = useState<number>(7);
@@ -61,22 +68,41 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
 
   const [data, setData] = useState<HistoryResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Update time every second
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
+  // Helper functions to convert between dd/mm/yyyy and ISO format
+  const formatDateForDisplay = (isoDate: string): string => {
+    if (!isoDate) return "";
+    try {
+      const date = new Date(isoDate);
+      if (isNaN(date.getTime())) return "";
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear().toString();
+      return `${day}/${month}/${year}`;
+    } catch {
+      return "";
+    }
+  };
 
-    return () => clearInterval(timer);
-  }, []);
+  const formatDateForAPI = (displayDate: string): string => {
+    if (!displayDate || displayDate === "dd/mm/yyyy") return "";
+    try {
+      const [day, month, year] = displayDate.split('/');
+      if (day && month && year) {
+        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        if (!isNaN(date.getTime())) {
+          return date.toISOString();
+        }
+      }
+    } catch {
+      // Invalid date format
+    }
+    return "";
+  };
 
   // Hydrate filters from URL
   useEffect(() => {
     const get = (k: string) => searchParams.get(k) ?? "";
-    const dr = get("date_range");
-    setDateRange(dr === "today" || dr === "10days" || dr === "30days" || dr === "90days" ? (dr as any) : "30days");
     setStartDate(get("start_date"));
     setEndDate(get("end_date"));
     const cp = Number(get("chart_points"));
@@ -89,7 +115,7 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
     setCategory(cat || "");
     const vis = searchParams.getAll("visualization");
     setVisualization(vis && vis.length ? vis.filter((k) => Object.keys(SERIES).includes(k)) : []);
-  }, [searchParams]); // useSearchParams per App Router docs
+  }, [searchParams]);
 
   // Set default selection if none is selected
   useEffect(() => {
@@ -101,18 +127,19 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
   // Compose API params
   const currentParams = useMemo(() => {
     const p: any = {
-      date_range: dateRange,
       chart_points: chartPoints,
       max_points: maxPoints,
       include_details: includeDetails || undefined,
       include_raw: includeRaw || undefined,
       category: category || undefined,
     };
+
     if (startDate) p.start_date = startDate;
     if (endDate) p.end_date = endDate;
     if (!category && visualization.length) p.visualization = visualization;
+
     return p;
-  }, [dateRange, startDate, endDate, chartPoints, maxPoints, includeDetails, includeRaw, category, visualization]);
+  }, [startDate, endDate, chartPoints, maxPoints, includeDetails, includeRaw, category, visualization]);
 
   // Push filters into URL
   const applyFiltersToUrl = useCallback(() => {
@@ -150,6 +177,7 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
     // Only allow one selection at a time
     setVisualization([k]);
   };
+
   const onShowAll = () => {
     setCategory("");
     setVisualization([]);
@@ -162,29 +190,55 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
           <CardTitle>Vehicle Dashboard</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {(["today", "10days", "30days", "90days"] as const).map((p) => (
-              <Button key={p} variant={dateRange === p ? "default" : "outline"} size="sm" onClick={() => setDateRange(p)}>
-                {p}
-              </Button>
-            ))}
-          </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <Input type="datetime-local" value={startDate} onChange={(e) => setStartDate(e.target.value)} placeholder="start_date (ISO)" />
-            <Input type="datetime-local" value={endDate} onChange={(e) => setEndDate(e.target.value)} placeholder="end_date (ISO)" />
-            <Input type="number" value={chartPoints} onChange={(e) => setChartPoints(Number(e.target.value))} placeholder="chart_points (default 7)" />
-            <Input type="number" value={maxPoints} onChange={(e) => setMaxPoints(Number(e.target.value))} placeholder="max_points (default 100)" />
+            <SegmentedDateInput
+              value={formatDateForDisplay(startDate)}
+              onChange={(value) => setStartDate(formatDateForAPI(value))}
+              placeholder="dd/mm/yyyy"
+            />
+            <SegmentedDateInput
+              value={formatDateForDisplay(endDate)}
+              onChange={(value) => setEndDate(formatDateForAPI(value))}
+              placeholder="dd/mm/yyyy"
+            />
+            <Input 
+              type="number" 
+              value={chartPoints} 
+              onChange={(e) => setChartPoints(Number(e.target.value))} 
+              placeholder="chart_points (default 7)" 
+            />
+            <Input 
+              type="number" 
+              value={maxPoints} 
+              onChange={(e) => setMaxPoints(Number(e.target.value))} 
+              placeholder="max_points (default 100)" 
+            />
           </div>
+
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={includeDetails} onChange={(e) => setIncludeDetails(e.target.checked)} />
+              <input 
+                type="checkbox" 
+                checked={includeDetails} 
+                onChange={(e) => setIncludeDetails(e.target.checked)} 
+              />
               include_details
             </label>
+
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={includeRaw} onChange={(e) => setIncludeRaw(e.target.checked)} />
+              <input 
+                type="checkbox" 
+                checked={includeRaw} 
+                onChange={(e) => setIncludeRaw(e.target.checked)} 
+              />
               include_raw
             </label>
-            <select className="border rounded px-2 py-1 text-sm" value={category} onChange={(e) => setCategory(e.target.value)}>
+
+            <select 
+              className="border rounded px-2 py-1 text-sm" 
+              value={category} 
+              onChange={(e) => setCategory(e.target.value)}
+            >
               <option value="">category (none)</option>
               {Object.entries(SERIES).map(([k, v]) => (
                 <option key={k} value={k}>
@@ -192,11 +246,14 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
                 </option>
               ))}
             </select>
+
             <Button variant="outline" onClick={applyFiltersToUrl}>
               Apply & Update URL
             </Button>
+
             <Button onClick={onShowAll}>Clear Selection</Button>
           </div>
+
           <div className="flex flex-wrap gap-1 max-w-full overflow-hidden">
             {Object.entries(SERIES).map(([k, v]) => (
               <Button
@@ -219,7 +276,7 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
           <div className="flex items-center justify-between">
             <CardTitle>Telemetry</CardTitle>
             <div className="text-sm text-gray-500 font-mono">
-              {currentTime.toLocaleString('en-US', {
+              {new Date().toLocaleString('en-US', {
                 weekday: 'short',
                 month: 'short',
                 day: 'numeric',
@@ -231,140 +288,108 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
             </div>
           </div>
         </CardHeader>
+
         <CardContent>
           {loading && <p className="text-sm text-gray-500">Loading…</p>}
+
           {!loading && (!data?.time_series_charts || seriesKeys.length === 0) && (
             <div className="text-center py-8">
               <p className="text-sm text-gray-500 mb-2">No telemetry to display</p>
               <p className="text-xs text-gray-400">Select a metric above to view its analytics</p>
             </div>
           )}
-          {!loading && data?.time_series_charts && seriesKeys.length > 0 && (
+
+          {!loading && data?.time_series_charts && seriesKeys && seriesKeys.length > 0 && (
             <div className="space-y-4">
-              {/* Date Range Info */}
-              <div className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Data Range:</span>
-                  <span>
-                    {data.date_filter ? 
-                      `${new Date(data.date_filter.start_date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      })} - ${new Date(data.date_filter.end_date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      })}` :
-                      'Current period'
-                    }
-                  </span>
-                </div>
+              {/* Data Points Info */}
+              <div className="flex items-center justify-end text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                 <div className="text-xs text-gray-500">
                   {data.raw ? `${data.raw.length} data points` : ''}
                 </div>
               </div>
+
               <div className="w-full h-[360px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={mergeSeries(data.time_series_charts, seriesKeys)}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="time"
-                    tickFormatter={(value) => {
-                      // Format the time label to show date and time clearly
-                      try {
-                        const date = new Date(value);
-                        if (!isNaN(date.getTime())) {
-                          const now = new Date();
-                          const isToday = date.toDateString() === now.toDateString();
-                          const isYesterday = date.toDateString() === new Date(now.getTime() - 24 * 60 * 60 * 1000).toDateString();
-                          
-                          if (isToday) {
-                            return `Today ${date.toLocaleTimeString('en-US', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              hour12: true
-                            })}`;
-                          } else if (isYesterday) {
-                            return `Yesterday ${date.toLocaleTimeString('en-US', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              hour12: true
-                            })}`;
-                          } else {
-                            return date.toLocaleString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              hour12: true
-                            });
-                          }
-                        }
-                        return value;
-                      } catch {
-                          return value;
-                        }
-                    }}
-                    angle={-45}
-                    textAnchor="end"
-                    height={100}
-                  />
-                  <YAxis />
-                  <Tooltip 
-                    labelFormatter={(value) => {
-                      // Format tooltip label to show full date and time clearly
-                      try {
-                        const date = new Date(value);
-                        if (!isNaN(date.getTime())) {
-                          const now = new Date();
-                          const isToday = date.toDateString() === now.toDateString();
-                          const isYesterday = date.toDateString() === new Date(now.getTime() - 24 * 60 * 60 * 1000).toDateString();
-                          
-                          let dateLabel = '';
-                          if (isToday) {
-                            dateLabel = 'Today';
-                          } else if (isYesterday) {
-                            dateLabel = 'Yesterday';
-                          } else {
-                            dateLabel = date.toLocaleDateString('en-US', {
-                              weekday: 'long',
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            });
-                          }
-                          
-                          const timeLabel = date.toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                            hour12: true
-                          });
-                          
-                          return `${dateLabel} at ${timeLabel}`;
-                        }
-                        return value;
-                      } catch {
-                        return value;
-                      }
-                    }}
-                    contentStyle={{
-                      backgroundColor: '#f8fafc',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                      fontSize: '14px',
-                      fontWeight: '500'
-                    }}
-                  />
-                  <Legend />
-                  {seriesKeys.map((visKey) => {
-                    const meta = SERIES[visKey];
-                    return <Line key={visKey} type="monotone" dataKey={meta.key} name={meta.label} stroke={meta.color} dot={false} />;
-                  })}
-                </LineChart>
-              </ResponsiveContainer>
+                {(() => {
+                  try {
+                    const chartData = data.time_series_charts ? mergeSeries(data.time_series_charts, seriesKeys) : [];
+                    return (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart 
+                          data={chartData}
+                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis 
+                            dataKey="display_time"
+                            tickFormatter={(value) => {
+                              // Format to show date and time
+                              try {
+                                const date = new Date(value);
+                                if (!isNaN(date.getTime())) {
+                                  return date.toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  });
+                                }
+                                return value;
+                              } catch {
+                                return value;
+                              }
+                            }}
+                            angle={-45}
+                            textAnchor="end"
+                            height={100}
+                          />
+                          <YAxis />
+                          <Tooltip 
+                            labelFormatter={(value) => {
+                              // Format tooltip to show full date and time
+                              try {
+                                const date = new Date(value);
+                                if (!isNaN(date.getTime())) {
+                                  return date.toLocaleDateString('en-US', {
+                                    weekday: 'long',
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    second: '2-digit'
+                                  });
+                                }
+                                return value;
+                              } catch {
+                                return value;
+                              }
+                            }}
+                            contentStyle={{
+                              backgroundColor: '#f8fafc',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '8px',
+                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                              fontSize: '14px',
+                              fontWeight: '500'
+                            }}
+                          />
+                          <Legend />
+                          {seriesKeys.map((visKey) => {
+                            const meta = SERIES[visKey];
+                            return <Line key={visKey} type="monotone" dataKey={meta.key} name={meta.label} stroke={meta.color} dot={false} />;
+                          })}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    );
+                  } catch (error) {
+                    console.error('Chart rendering error:', error);
+                    return (
+                      <div className="flex items-center justify-center h-full text-red-500">
+                        <p>Error rendering chart. Please try again.</p>
+                      </div>
+                    );
+                  }
+                })()}
               </div>
             </div>
           )}
@@ -427,21 +452,45 @@ export default function VehicleDashboardEmbedded({ vehicleId }: { vehicleId: num
 
 // Merge series into a single dataset for Recharts
 function mergeSeries(
-  timeSeriesCharts: Record<string, Array<{ time_label: string; value: number }>>,
+  timeSeriesCharts: Record<string, Array<{ timestamp: string; date_label: string; time_label: string; value: number }>>,
   visKeys: string[]
 ) {
+  // Add null/undefined checks
+  if (!timeSeriesCharts || !visKeys || visKeys.length === 0) {
+    return [];
+  }
+
   const timeMap = new Map<string, any>();
+
   visKeys.forEach((vk) => {
+    // Check if the series key exists
+    if (!SERIES[vk] || !SERIES[vk].key) {
+      return;
+    }
     const sKey = SERIES[vk].key;
+
     const arr = timeSeriesCharts[sKey] || [];
+
+    if (!Array.isArray(arr)) {
+      return;
+    }
     arr.forEach((pt) => {
-      const t = pt.time_label;
-      const row = timeMap.get(t) || { time: t };
-      row[sKey] = pt.value;
-      timeMap.set(t, row);
+      if (pt && pt.timestamp && typeof pt.value === 'number') {
+        const t = pt.timestamp;
+        const row = timeMap.get(t) || { 
+          time: pt.timestamp,
+          date_label: pt.date_label,
+          time_label: pt.time_label,
+          display_time: `${pt.date_label} ${pt.time_label}`
+        };
+        row[sKey] = pt.value;
+        timeMap.set(t, row);
+      }
     });
   });
+
   const rows = Array.from(timeMap.values());
-  rows.sort((a, b) => (a.time > b.time ? 1 : a.time < b.time ? -1 : 0));
+  rows.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
   return rows;
 }
