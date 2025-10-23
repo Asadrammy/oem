@@ -179,6 +179,7 @@ import {
   Search,
   User,
   Usb,
+  LogOut,
 } from "lucide-react";
 
 import {
@@ -196,6 +197,9 @@ import {
 import { Input } from "@/components/ui/input";
 import GlobalSearch from "@/components/global-search";
 import { fuzzySearch } from "@/lib/fuzzySearch";
+import { useAuth } from "@/app/context/auth-context";
+import { useRouter } from "next/navigation";
+import { useCallback } from "react";
 
 const navigation = [
   {
@@ -246,6 +250,19 @@ const navigation = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = useCallback(() => {
+    try {
+      logout();
+      // The logout function now handles the redirect
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Fallback redirect if logout fails
+      router.push("/login");
+    }
+  }, [logout, router]);
   const [search, setSearch] = useState("");
   const sidebarContentRef = useRef<HTMLDivElement>(null);
 
@@ -461,6 +478,25 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
+
+        {/* Logout Button */}
+        {user && (
+          <SidebarGroup className="mt-auto">
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton 
+                    onClick={handleLogout}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 cursor-pointer font-medium"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Logout</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarRail />

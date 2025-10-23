@@ -1,5 +1,8 @@
 "use client";
 
+// SECURITY WARNING: Never hardcode credentials in production code
+// All input fields must be empty by default to prevent security vulnerabilities
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -18,8 +21,8 @@ export default function LoginPage() {
 
   // ---------- States ----------
   const [company, setCompany] = useState(""); // Tenant: e.g., "oem" or "joulepoint"
-  const [username, setUsername] = useState("oemadmin");
-  const [password, setPasswordInput] = useState("oemadmin123");
+  const [username, setUsername] = useState("");
+  const [password, setPasswordInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -158,7 +161,7 @@ export default function LoginPage() {
 
         {/* ---------- LOGIN FORM ---------- */}
         {view === "login" && (
-          <form onSubmit={handleLogin} className="space-y-2">
+          <form onSubmit={handleLogin} className="space-y-2" autoComplete="off">
             <div>
               <label className="block text-gray-700 mb-1 font-medium">
                 Company Name
@@ -169,6 +172,10 @@ export default function LoginPage() {
                 onChange={(e) => setCompany(e.target.value)}
                 className="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
                 placeholder="oem / joulepoint"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
                 required
               />
             </div>
@@ -182,6 +189,10 @@ export default function LoginPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
                 placeholder="Enter username"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
                 required
               />
             </div>
@@ -195,6 +206,10 @@ export default function LoginPage() {
                 onChange={(e) => setPasswordInput(e.target.value)}
                 className="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
                 placeholder="Enter password"
+                autoComplete="new-password"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
                 required
               />
             </div>
@@ -227,7 +242,7 @@ export default function LoginPage() {
 
         {/* ---------- FORGOT PASSWORD FORM ---------- */}
         {view === "forgot" && (
-          <form onSubmit={handleForgotPassword} className="space-y-5">
+          <form onSubmit={handleForgotPassword} className="space-y-5" autoComplete="off">
             <div>
               <label className="block text-gray-700 mb-1 font-medium">
                 Email or Phone
@@ -238,6 +253,10 @@ export default function LoginPage() {
                 onChange={(e) => setEmailOrPhone(e.target.value)}
                 className="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
                 placeholder="Enter your Email or Phone"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
                 required
               />
             </div>
@@ -259,7 +278,7 @@ export default function LoginPage() {
 
         {/* ---------- RESET PASSWORD FORM ---------- */}
         {view === "reset" && (
-          <form onSubmit={handleResetPassword} className="space-y-5">
+          <form onSubmit={handleResetPassword} className="space-y-5" autoComplete="off">
             <div>
               <label className="block text-gray-700 mb-1 font-medium">
                 OTP
@@ -270,6 +289,10 @@ export default function LoginPage() {
                 onChange={(e) => setOtp(e.target.value)}
                 className="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
                 placeholder="Enter OTP"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
                 required
               />
             </div>
@@ -283,6 +306,10 @@ export default function LoginPage() {
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
                 placeholder="Enter new password"
+                autoComplete="new-password"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
                 required
               />
             </div>
@@ -304,7 +331,7 @@ export default function LoginPage() {
 
         {/* ---------- SET PASSWORD FORM ---------- */}
         {view === "setpass" && (
-          <form onSubmit={handleSetPassword} className="space-y-5">
+          <form onSubmit={handleSetPassword} className="space-y-5" autoComplete="off">
             <div>
               <label className="block text-gray-700 mb-1 font-medium">
                 Old Password
@@ -315,6 +342,10 @@ export default function LoginPage() {
                 onChange={(e) => setOldPassword(e.target.value)}
                 className="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
                 placeholder="Enter your old password"
+                autoComplete="current-password"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
                 required
               />
             </div>
@@ -328,6 +359,10 @@ export default function LoginPage() {
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
                 placeholder="Enter new password"
+                autoComplete="new-password"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
                 required
               />
             </div>

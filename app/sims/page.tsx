@@ -21,6 +21,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Edit,
 } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api"; // assuming you have axios instance
@@ -548,28 +549,40 @@ export default function SIMCardListPage() {
                               : "-"}
                           </TableCell>
                           <TableCell>
-                            {sim.status !== "suspended" ? (
+                            <div className="flex items-center gap-2">
+                              {sim.status !== "suspended" ? (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => suspendSIM(sim.id)}
+                                  className="h-8"
+                                >
+                                  Suspend
+                                </Button>
+                              ) : (
+                                <span className="text-gray-500 text-sm">
+                                  Suspended
+                                </span>
+                              )}
                               <Button
                                 size="sm"
-                                variant="destructive"
-                                onClick={() => suspendSIM(sim.id)}
+                                variant="outline"
                                 className="h-8"
+                                asChild
                               >
-                                Suspend
+                                <Link href={`/sims/edit/${sim.id}`}>
+                                  <Edit className="w-4 h-4" />
+                                </Link>
                               </Button>
-                            ) : (
-                              <span className="text-gray-500 text-sm">
-                                Suspended
-                              </span>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8"
-                              onClick={() => handleDeleteSIMCard(sim.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8"
+                                onClick={() => handleDeleteSIMCard(sim.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))

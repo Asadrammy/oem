@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import AuthGuard from "@/components/AuthGuard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listAlertRules, listVehiclesType, deleteAlertRule } from "@/lib/api";
-import { fuzzySearch } from "@/lib/fuzzySearch";
 
 interface Condition {
   id: number;
@@ -54,7 +54,6 @@ export default function AlertRulesPage() {
   const [loading, setLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeSearchTerm, setActiveSearchTerm] = useState(""); // New state for active search
   const [selectedType, setSelectedType] = useState<string>("all");
 
   const [page, setPage] = useState(1);
@@ -77,12 +76,32 @@ export default function AlertRulesPage() {
       const data = await listAlertRules();
       let rules: AlertRule[] = data.results ?? [];
 
-      if (activeSearchTerm) {
-        rules = fuzzySearch(rules, activeSearchTerm, ['name', 'description', 'severity', 'system'], {
-          threshold: 0.3,
-          minLength: 2
-        });
+      // Apply search filter with exact/partial matching logic
+      if (searchTerm.trim()) {
+        const searchValue = searchTerm.trim();
+        
+        // First check for exact match (case-insensitive)
+        const exactMatch = rules.find(
+          (rule) => rule.name.toLowerCase() === searchValue.toLowerCase()
+        );
+
+        if (exactMatch) {
+          // If exact match found, show only that item
+          rules = [exactMatch];
+        } else {
+          // If no exact match, do partial matching on name, severity, and system
+          rules = rules.filter((rule) => {
+            const searchLower = searchValue.toLowerCase();
+            return (
+              rule.name.toLowerCase().includes(searchLower) ||
+              rule.severity.toLowerCase().includes(searchLower) ||
+              rule.system.toLowerCase().includes(searchLower)
+            );
+          });
+        }
       }
+
+      // Apply vehicle type filter
       if (selectedType !== "all") {
         rules = rules.filter((r) =>
           r.vehicle_types.includes(Number(selectedType))
@@ -99,35 +118,23 @@ export default function AlertRulesPage() {
     }
   };
 
-  const handleSearch = () => {
-    setActiveSearchTerm(searchTerm);
-    setPage(1); // Reset to first page when searching
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleSearch();
-    }
+  const clearSearch = () => {
+    setSearchTerm("");
+    setPage(1);
   };
 
   useEffect(() => {
     fetchVehicleTypes();
   }, []);
 
+  // Dynamic search: fetch whenever search term, page, or selectedType changes
   useEffect(() => {
     fetchAlertRules();
-  }, [page, activeSearchTerm, selectedType]);
-
-  // Auto-clear search when search term is empty
-  useEffect(() => {
-    if (searchTerm === "") {
-      setActiveSearchTerm("");
-      setPage(1);
-    }
-  }, [searchTerm]);
+  }, [page, searchTerm, selectedType]);
 
   return (
-    <div className="space-y-6">
+    <AuthGuard>
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -148,27 +155,39 @@ export default function AlertRulesPage() {
           <div className="relative flex-1 min-w-64">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
-              placeholder="Search by name..."
+              placeholder="Search by name, severity, or system..."
               className="pl-10"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={handleKeyPress}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1); // Reset to first page when searching
+              }}
             />
           </div>
 
-          <Button
-          onClick={handleSearch}
-            className="bg-gray-700 hover:bg-gray-800"
-          >
-            Search
-          </Button>
+          {searchTerm && (
+            <Button
+              onClick={clearSearch}
+              variant="outline"
+              className="text-gray-600 hover:text-gray-800"
+            >
+              Clear
+            </Button>
+          )}
         </CardContent>
       </Card>
 
       {/* Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Alert Rules ({totalCount} total)</CardTitle>
+          <CardTitle>
+            Alert Rules ({totalCount} total)
+            {searchTerm && (
+              <span className="text-sm font-normal text-gray-500 ml-2">
+                - Filtered by "{searchTerm}"
+              </span>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -181,16 +200,34 @@ export default function AlertRulesPage() {
           ) : alertRules.length === 0 ? (
             <div className="text-center py-12">
               <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                <Plus className="w-8 h-8 text-gray-400" />
+                <Search className="w-8 h-8 text-gray-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No alert rules yet</h3>
-              <p className="text-gray-500 mb-4">Create your first alert rule to monitor vehicle conditions and get notified of issues.</p>
-              <Link href="/alerts/create">
-                <Button className="bg-blue-600 hover:bg-blue-700">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Alert Rule
-                </Button>
-              </Link>
+              {searchTerm ? (
+                <>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No matching alert rules found</h3>
+                  <p className="text-gray-500 mb-4">
+                    No alert rules match your search for "{searchTerm}". Try a different search term.
+                  </p>
+                  <Button
+                    onClick={clearSearch}
+                    variant="outline"
+                    className="mr-2"
+                  >
+                    Clear Search
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No alert rules yet</h3>
+                  <p className="text-gray-500 mb-4">Create your first alert rule to monitor vehicle conditions and get notified of issues.</p>
+                  <Link href="/alerts/create">
+                    <Button className="bg-blue-600 hover:bg-blue-700">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Alert Rule
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -332,6 +369,7 @@ export default function AlertRulesPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </AuthGuard>
   );
 }

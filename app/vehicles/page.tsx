@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import AuthGuard from "@/components/AuthGuard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -125,7 +126,8 @@ export default function VehiclesPage() {
           // Map the status values - adjust based on your actual data structure
           const statusMap: Record<string, string> = {
             "Available": "available",
-            "In-Service/Maintenance": "maintenance", 
+            "In-Service": "in-service",
+            "Maintenance": "maintenance", 
             "Retired": "retired"
           };
           return v.status === statusMap[selectedStatus];
@@ -180,7 +182,8 @@ export default function VehiclesPage() {
   }, [searchTerm]);
 
   return (
-    <div className="space-y-6">
+    <AuthGuard>
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -223,7 +226,8 @@ export default function VehiclesPage() {
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="Available">Available</SelectItem>
-              <SelectItem value="In-Service/Maintenance">In-Service/Maintenance</SelectItem>
+              <SelectItem value="In-Service">In-Service</SelectItem>
+              <SelectItem value="Maintenance">Maintenance</SelectItem>
               <SelectItem value="Retired">Retired</SelectItem>
             </SelectContent>
           </Select>
@@ -436,6 +440,7 @@ export default function VehiclesPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </AuthGuard>
   );
 }

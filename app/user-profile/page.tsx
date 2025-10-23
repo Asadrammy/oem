@@ -6,6 +6,10 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/app/context/auth-context";
+import { useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
 import {
   User,
   Mail,
@@ -55,6 +59,19 @@ export default function ProfilePage() {
   const [data, setData] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const { logout } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = () => {
+    try {
+      logout();
+      // The logout function now handles the redirect
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Fallback redirect if logout fails
+      router.push("/login");
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -125,6 +142,16 @@ export default function ProfilePage() {
                       </Badge>
                     )}
                   </div>
+                </div>
+                <div className="ml-auto">
+                  <Button 
+                    onClick={handleLogout}
+                    variant="outline"
+                    className="bg-white/20 text-white border-white/30 hover:bg-white/30"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Logout
+                  </Button>
                 </div>
               </div>
             </div>

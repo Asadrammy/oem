@@ -128,12 +128,12 @@ export default function SimCardDetailPage() {
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
             </Button>
-            {/* <Button variant="outline" asChild>
-        <Link href={`/sim-cards/edit/${simCard.id}`}>
-          <Edit className="w-4 h-4 mr-2" />
-          Edit SIM
-        </Link>
-      </Button> */}
+            <Button variant="outline" asChild>
+              <Link href={`/sims/edit/${simCard.id}`}>
+                <Edit className="w-4 h-4 mr-2" />
+                Edit SIM
+              </Link>
+            </Button>
             {simCard.device && (
               <Button
                 asChild

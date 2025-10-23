@@ -379,10 +379,49 @@
 //   );
 // }
 // app/page.tsx
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/app/context/auth-context";
 
 export default function Home() {
-  // This will be handled by middleware or auth context
-  // For now, redirect to dashboard as the main entry point
-  redirect("/dashboard");
+  const router = useRouter();
+  const { user, loading } = useAuth();
+  const [mounted, setMounted] = useState(false);
+
+  // Ensure component is mounted on client side
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    // Only run after component is mounted and auth is loaded
+    if (!mounted || loading) return;
+    
+    // Check if user is authenticated
+    if (user && user.token) {
+      // User is authenticated, redirect to dashboard
+      router.push("/dashboard");
+    } else {
+      // User is not authenticated, redirect to login
+      router.push("/login");
+    }
+  }, [user, loading, router, mounted]);
+
+  // Show loading while checking authentication or not mounted
+  if (!mounted || loading) {
+    return (
+      <div className="min-h-screen grid place-items-center">
+        <div className="animate-pulse text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+
+  // Show loading while redirecting
+  return (
+    <div className="min-h-screen grid place-items-center">
+      <div className="animate-pulse text-gray-600">Redirecting...</div>
+    </div>
+  );
 }

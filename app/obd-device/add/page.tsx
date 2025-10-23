@@ -273,17 +273,6 @@ export default function AddOBDDevicePage() {
         <CardContent className="space-y-4">
           {err && <div className="text-red-600">{err}</div>}
           
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-            <h4 className="text-sm font-medium text-blue-800 mb-2">OBD Device Data Format Guidelines</h4>
-            <ul className="text-sm text-blue-700 space-y-1">
-              <li>• <strong>Device ID:</strong> Must follow format OBD-XXXX (e.g., OBD-6002)</li>
-              <li>• <strong>Serial Number:</strong> Must follow format SN-XXXX-XXXX (e.g., SN-6002-AX02)</li>
-              <li>• <strong>Firmware Version:</strong> Must follow semantic versioning X.Y.Z (e.g., 1.4.5)</li>
-              <li>• <strong>Report Interval:</strong> 1-3600 seconds</li>
-              <li>• <strong>CAN Baud Rate:</strong> Must be 125000, 250000, 500000, or 1000000</li>
-            </ul>
-          </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Device ID *</Label>

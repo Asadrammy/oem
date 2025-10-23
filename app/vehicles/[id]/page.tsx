@@ -687,22 +687,46 @@ export default function VehicleDetailsPage() {
             </Button>
             <Button variant="outline" asChild className="h-16 flex-col gap-2">
               <Link href={`/vehicle-dashboard/?vehicleId=${vehicle.id}`}>
-                <Building className="w-5 h-5" />
-                <span>View Analatics</span>
+                <BarChart3Icon className="w-5 h-5" />
+                <span>View Analytics</span>
               </Link>
             </Button>
-            <Button variant="outline" asChild className="h-16 flex-col gap-2">
-              <Link href={`/sims/${vehicle?.obd_device?.sim_card?.id}`}>
-                <Building className="w-5 h-5" />
-                <span>SIM Card </span>
-              </Link>
-            </Button>
-            <Button variant="outline" asChild className="h-16 flex-col gap-2">
-              <Link href={`/obd-device/${vehicle?.obd_device?.id}`}>
-                <Building className="w-5 h-5" />
+            {vehicle?.obd_device?.sim_card ? (
+              <Button variant="outline" asChild className="h-16 flex-col gap-2">
+                <Link href={`/sims/${vehicle.obd_device.sim_card.id}`}>
+                  <SmartphoneIcon className="w-5 h-5" />
+                  <span>SIM Card</span>
+                </Link>
+              </Button>
+            ) : (
+              <Button 
+                variant="outline" 
+                disabled 
+                className="h-16 flex-col gap-2 opacity-50 cursor-not-allowed"
+                title="No SIM card assigned to this vehicle"
+              >
+                <SmartphoneIcon className="w-5 h-5" />
+                <span>SIM Card</span>
+              </Button>
+            )}
+            {vehicle?.obd_device ? (
+              <Button variant="outline" asChild className="h-16 flex-col gap-2">
+                <Link href={`/obd-device/${vehicle.obd_device.id}`}>
+                  <Cpu className="w-5 h-5" />
+                  <span>OBD Device</span>
+                </Link>
+              </Button>
+            ) : (
+              <Button 
+                variant="outline" 
+                disabled 
+                className="h-16 flex-col gap-2 opacity-50 cursor-not-allowed"
+                title="No OBD device assigned to this vehicle"
+              >
+                <Cpu className="w-5 h-5" />
                 <span>OBD Device</span>
-              </Link>
-            </Button>
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

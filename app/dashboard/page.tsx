@@ -662,6 +662,7 @@
 
 import { useEffect, useState } from "react";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import AuthGuard from "@/components/AuthGuard";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   ResponsiveContainer,
@@ -991,6 +992,7 @@ export default function Dashboard() {
       ];
 
   return (
+    <AuthGuard>
     <SidebarProvider>
       <SidebarInset>
         <div className="flex-1 space-y-8 p-6 bg-gray-50">
@@ -1392,5 +1394,6 @@ export default function Dashboard() {
         </div>
       </SidebarInset>
     </SidebarProvider>
+    </AuthGuard>
   );
 }

@@ -296,8 +296,13 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 type OBDTelemetry = {
   id: number;
-  trip: number | null;
+  _id?: string | number | null;
+  trip: number | null | {
+    _id?: string | number | null;
+    [key: string]: any;
+  };
   trip_id?: number | null;
+  trip_uuid?: string | null;
   // Alternative possible field names for trip_id
   tripId?: number | null;
   trip_number?: number | null;
@@ -502,14 +507,35 @@ export default function OBDTelemetryPage() {
 
   // Helper function to get trip_id from various possible field names
   const getTripId = (record: OBDTelemetry): string => {
-    // Check various possible field names for trip_id
-    if (record.trip_id !== null && record.trip_id !== undefined) return String(record.trip_id);
-    if (record.tripId !== null && record.tripId !== undefined) return String(record.tripId);
+    // Prioritize trip_uuid field as requested
+    if (record.trip_uuid !== null && record.trip_uuid !== undefined) {
+      return String(record.trip_uuid);
+    }
+    
+    // Fallback to trip._id field
+    if (record.trip && typeof record.trip === 'object' && record.trip._id !== null && record.trip._id !== undefined) {
+      return String(record.trip._id);
+    }
+    
+    // Fallback to other trip identifiers
     if (record.trip_number !== null && record.trip_number !== undefined) return String(record.trip_number);
     if (record.journey_id !== null && record.journey_id !== undefined) return String(record.journey_id);
+    if (record.tripId !== null && record.tripId !== undefined) return String(record.tripId);
+    
+    // Use trip_id only if it's not the same as the database _id (which is usually a large number)
+    // and if it's different from the trip field
+    if (record.trip_id !== null && record.trip_id !== undefined && 
+        record.trip_id !== record.id && record.trip_id !== record.trip) {
+      return String(record.trip_id);
+    }
     
     // If no specific trip_id field found, return the trip value as fallback
-    if (record.trip !== null && record.trip !== undefined) return String(record.trip);
+    if (record.trip !== null && record.trip !== undefined) {
+      if (typeof record.trip === 'object') {
+        return String(record.trip);
+      }
+      return String(record.trip);
+    }
     
     return "—";
   };
@@ -786,7 +812,8 @@ export default function OBDTelemetryPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full max-w-full overflow-x-hidden" style={{ maxWidth: '100vw', width: '100%' }}>
+      <div className="space-y-6 w-full max-w-full">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -804,15 +831,15 @@ export default function OBDTelemetryPage() {
       </div>
 
       {/* Filters */}
-      <Card>
+      <Card className="w-full max-w-full overflow-hidden" style={{ maxWidth: '100%', width: '100%' }}>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2">
             <Filter className="w-4 h-4" /> Filters
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4 space-y-4">
-          {/* Row 1: time + trip + vehicle */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          {/* Row 1: Date filters and basic trip filters */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
             {/* Timestamp After - segmented date input */}
             <SegmentedDateInput
               value={formatDisplay(timestampAfter)}
@@ -838,19 +865,19 @@ export default function OBDTelemetryPage() {
             />
             <Input placeholder="trip" value={trip} onChange={(e) => setTrip(e.target.value)} />
             <Input placeholder="trip_id" value={tripId} onChange={(e) => setTripId(e.target.value)} />
-            <Input
-              placeholder="vehicle (id)"
-              value={vehicle}
-              onChange={(e) => setVehicle(e.target.value)}
-            />
           </div>
 
-          {/* Row 2: vin + numeric ranges */}
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+          {/* Row 2: Vehicle and speed filters */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
             <Input
               placeholder="vehicle_vin"
               value={vehicleVin}
               onChange={(e) => setVehicleVin(e.target.value)}
+            />
+            <Input
+              placeholder="vehicle (id)"
+              value={vehicle}
+              onChange={(e) => setVehicle(e.target.value)}
             />
             <Input
               type="number"
@@ -864,6 +891,10 @@ export default function OBDTelemetryPage() {
               value={maxSpeed}
               onChange={(e) => setMaxSpeed(toNonNegativeString(e.target.value))}
             />
+          </div>
+
+          {/* Row 3: Battery and range filters */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
             <Input
               type="number"
               placeholder="min_battery"
@@ -882,15 +913,16 @@ export default function OBDTelemetryPage() {
               value={minRange}
               onChange={(e) => setMinRange(toNonNegativeString(e.target.value))}
             />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
             <Input
               type="number"
               placeholder="max_range"
               value={maxRange}
               onChange={(e) => setMaxRange(toNonNegativeString(e.target.value))}
             />
+          </div>
+
+          {/* Row 4: Motor temperature and error codes */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
             <Input
               type="number"
               placeholder="Min Motor Temperature"
@@ -912,25 +944,19 @@ export default function OBDTelemetryPage() {
               <option value="true">has_error_codes=true</option>
               <option value="false">has_error_codes=false</option>
             </select>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={aggregated}
-                onChange={(e) => setAggregated(e.target.checked)}
-              />
-              aggregated=true
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={topErrors}
-                onChange={(e) => setTopErrors(e.target.checked)}
-              />
-              top_errors=true
-            </label>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={aggregated}
+                  onChange={(e) => setAggregated(e.target.checked)}
+                />
+                aggregated
+              </label>
+            </div>
           </div>
 
-          {/* Sorting and actions */}
+          {/* Row 5: Sorting and actions */}
           <div className="flex flex-wrap items-center gap-3">
             <select
               className="border rounded px-3 py-2 text-sm"
@@ -951,6 +977,14 @@ export default function OBDTelemetryPage() {
               <option value="desc">Desc</option>
               <option value="asc">Asc</option>
             </select>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={topErrors}
+                onChange={(e) => setTopErrors(e.target.checked)}
+              />
+              top_errors
+            </label>
 
             <div className="ml-auto flex gap-2">
               <Button variant="outline" onClick={resetFilters}>
@@ -963,7 +997,7 @@ export default function OBDTelemetryPage() {
       </Card>
 
       {/* Quick search row */}
-      <Card>
+      <Card className="w-full max-w-full overflow-hidden" style={{ maxWidth: '100%', width: '100%' }}>
         <CardContent className="p-4 flex flex-wrap items-center gap-4">
           <div className="relative flex-1 min-w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -981,30 +1015,33 @@ export default function OBDTelemetryPage() {
       </Card>
 
       {/* Table */}
-      <Card>
+      <Card className="w-full max-w-full overflow-hidden" style={{ maxWidth: '100%', width: '100%' }}>
         <CardHeader>
           <CardTitle>
             Telemetry Records ({filtered.length}
             {totalCount ? ` of ${totalCount}` : ""})
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
+        <CardContent className="p-0 w-full max-w-full overflow-hidden">
+          <div className="relative w-full">
+            <div className="overflow-x-auto relative">
+              <div className="absolute top-0 right-0 bg-gradient-to-l from-white to-transparent w-8 h-full pointer-events-none z-20"></div>
+              <div className="absolute top-0 left-0 bg-gradient-to-r from-white to-transparent w-8 h-full pointer-events-none z-20"></div>
+              <Table className="min-w-max w-full">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Vehicle</TableHead>
-                  <TableHead>Trip</TableHead>
-                  <TableHead>Trip ID</TableHead>
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead>Lat</TableHead>
-                  <TableHead>Lng</TableHead>
-                  <TableHead>Speed (kph)</TableHead>
-                  <TableHead>Battery %</TableHead>
-                  <TableHead>Motor Temp (°C)</TableHead>
-                  <TableHead>Voltage (V)</TableHead>
-                  <TableHead>Error Codes</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="min-w-[40px] w-[40px]">Vechicle</TableHead>
+                  <TableHead className="min-w-[40px] w-[40px]">Trip</TableHead>
+                  <TableHead className="min-w-[80px] w-[80px]">Trip_ID</TableHead>
+                  <TableHead className="min-w-[100px] w-[100px]">Time</TableHead>
+                  <TableHead className="min-w-[60px] w-[60px]">Lat</TableHead>
+                  <TableHead className="min-w-[60px] w-[60px]">Lng</TableHead>
+                  <TableHead className="min-w-[50px] w-[50px]">Speed</TableHead>
+                  <TableHead className="min-w-[50px] w-[50px]">Battery</TableHead>
+                  <TableHead className="min-w-[60px] w-[60px]">Temp</TableHead>
+                  <TableHead className="min-w-[50px] w-[50px]">Volt</TableHead>
+                  <TableHead className="min-w-[100px] w-[100px]">Errors</TableHead>
+                  <TableHead className="min-w-[60px] w-[60px] text-right sticky right-0 bg-white z-10 border-l">Act</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1019,22 +1056,22 @@ export default function OBDTelemetryPage() {
                   </TableRow>
                 )}
                 {filtered.map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell>{t.vehicle_id ?? "—"}</TableCell>
-                    <TableCell>{t.trip ?? "—"}</TableCell>
-                    <TableCell>{getTripId(t)}</TableCell>
-                    <TableCell>{new Date(t.timestamp).toLocaleString()}</TableCell>
-                    <TableCell>{t.latitude != null ? t.latitude.toFixed(5) : "—"}</TableCell>
-                    <TableCell>{t.longitude != null ? t.longitude.toFixed(5) : "—"}</TableCell>
-                    <TableCell>{t.speed_kph ?? "—"}</TableCell>
-                    <TableCell>{t.battery_level_percent ?? "—"}</TableCell>
-                    <TableCell>{t.motor_temp_c ?? "—"}</TableCell>
-                    <TableCell>{t.battery_voltage ?? "—"}</TableCell>
-                    <TableCell className="max-w-[240px] truncate">{t.error_codes || "—"}</TableCell>
-                    <TableCell className="text-right">
+                  <TableRow key={t.id} className="hover:bg-gray-50">
+                    <TableCell className="font-medium text-xs text-center">{t.vehicle_id ?? "—"}</TableCell>
+                    <TableCell className="text-xs text-center">{typeof t.trip === 'object' ? (t.trip as any)?.id ?? t.trip ?? "—" : t.trip ?? "—"}</TableCell>
+                    <TableCell className="font-mono text-xs break-all max-w-[80px] truncate" title={getTripId(t)}>{getTripId(t).substring(0, 8)}...</TableCell>
+                    <TableCell className="text-xs">{new Date(t.timestamp).toLocaleDateString()}</TableCell>
+                    <TableCell className="font-mono text-xs">{t.latitude != null ? t.latitude.toFixed(2) : "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">{t.longitude != null ? t.longitude.toFixed(2) : "—"}</TableCell>
+                    <TableCell className="text-right text-xs">{t.speed_kph ? Math.round(t.speed_kph) : "—"}</TableCell>
+                    <TableCell className="text-right text-xs">{t.battery_level_percent ? Math.round(t.battery_level_percent) : "—"}</TableCell>
+                    <TableCell className="text-right text-xs">{t.motor_temp_c ? Math.round(t.motor_temp_c) : "—"}</TableCell>
+                    <TableCell className="text-right text-xs">{t.battery_voltage ? Math.round(t.battery_voltage) : "—"}</TableCell>
+                    <TableCell className="max-w-[100px] truncate text-xs" title={t.error_codes || ""}>{t.error_codes ? t.error_codes.substring(0, 10) + "..." : "—"}</TableCell>
+                    <TableCell className="text-right sticky right-0 bg-white z-10 border-l">
                       <Link href={`/obd-telemetry/${t.id}`}>
-                        <Button variant="ghost" size="sm" title="View detail">
-                          <Eye className="w-4 h-4" />
+                        <Button variant="ghost" size="sm" title="View detail" className="p-1">
+                          <Eye className="w-3 h-3" />
                         </Button>
                       </Link>
                     </TableCell>
@@ -1042,6 +1079,14 @@ export default function OBDTelemetryPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
+            
+            {/* Scroll indicator */}
+            <div className="flex justify-center mt-2">
+              <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                ← Scroll horizontally to see all columns →
+              </div>
+            </div>
 
             {/* Pagination */}
             <div className="flex justify-between items-center mt-4">
@@ -1107,6 +1152,7 @@ export default function OBDTelemetryPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

@@ -101,8 +101,14 @@ export function Header({ title, subtitle, notifications = 0 }: HeaderProps) {
   const router = useRouter();
 
   const handleLogout = useCallback(() => {
-    logout();
-    router.push("/login");
+    try {
+      logout();
+      // The logout function now handles the redirect
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Fallback redirect if logout fails
+      router.push("/login");
+    }
   }, [logout, router]);
 
   const goProfile = useCallback(() => {
@@ -146,11 +152,17 @@ export function Header({ title, subtitle, notifications = 0 }: HeaderProps) {
               </div>
             </DropdownMenuTrigger>
 
-            <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={goProfile}>My Profile</DropdownMenuItem>
-              <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+              <DropdownMenuItem onClick={goProfile} className="cursor-pointer">
+                My Profile
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={handleLogout} 
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 cursor-pointer font-medium"
+              >
                 Logout
               </DropdownMenuItem>
             </DropdownMenuContent>

@@ -94,6 +94,22 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Helper function to handle auth failure
+const handleAuthFailure = () => {
+  if (typeof window !== "undefined") {
+    console.log("🚪 Authentication failed, clearing data and redirecting to login");
+    // Clear all auth data
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("api_company");
+    sessionStorage.clear();
+    
+    // Redirect to login
+    window.location.href = "/login";
+  }
+};
+
 // ----------------- Response interceptor -----------------
 api.interceptors.response.use(
   (response) => response,
@@ -124,13 +140,9 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       
-      // Check if it's a token validation error
-      const errorData = error.response?.data;
-      if (errorData?.code === "token_not_valid" || 
-          errorData?.detail?.includes("token") ||
-          errorData?.messages?.some((msg: any) => msg.token_type === "access")) {
-        
-        console.log("🔄 Token invalid, attempting refresh...");
+      console.log("🔐 401 Unauthorized - Attempting token refresh...");
+      
+      try {
         const newToken = await refreshAccessToken();
 
         if (newToken) {
@@ -138,24 +150,36 @@ api.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
           return api(originalRequest);
         } else {
-          console.log("❌ Token refresh failed, redirecting to login");
-          if (typeof window !== "undefined") {
-            // Clear all auth data
-            localStorage.removeItem("access_token");
-            localStorage.removeItem("refresh_token");
-            localStorage.removeItem("user");
-            // Redirect to login if refresh token also expired
-            window.location.href = "/login";
-          }
+          // Refresh failed - logout and redirect
+          console.log("❌ Token refresh failed - redirecting to login");
+          handleAuthFailure();
+          return Promise.reject({
+            ...error,
+            message: "Session expired. Please login again.",
+            isAuthError: true
+          });
         }
-      } else {
-        // For other 401 errors, still try to refresh
-        const newToken = await refreshAccessToken();
-        if (newToken) {
-          originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          return api(originalRequest);
-        }
+      } catch (refreshError) {
+        // Refresh token request failed - logout and redirect
+        console.log("❌ Token refresh error - redirecting to login");
+        handleAuthFailure();
+        return Promise.reject({
+          ...error,
+          message: "Session expired. Please login again.",
+          isAuthError: true
+        });
       }
+    }
+
+    // If 401 and already retried, force logout
+    if (error.response?.status === 401 && originalRequest._retry) {
+      console.log("❌ 401 after retry - forcing logout");
+      handleAuthFailure();
+      return Promise.reject({
+        ...error,
+        message: "Session expired. Please login again.",
+        isAuthError: true
+      });
     }
 
     // Handle other HTTP errors with better error messages
@@ -237,19 +261,24 @@ export const refreshAccessToken = async (): Promise<string | null> => {
     refreshToken = localStorage.getItem("refresh_token");
   }
   
-  if (!refreshToken) return null;
+  if (!refreshToken) {
+    console.log("❌ No refresh token available");
+    return null;
+  }
 
   try {
+    console.log("🔄 Attempting to refresh access token...");
     const res = await axios.post(
       `${api.defaults.baseURL}/api/users/refresh_token/`,
       { refresh: refreshToken },
       {
         headers: { "Content-Type": "application/json" },
+        timeout: 10000, // 10 seconds timeout
       }
     );
     const newToken = res.data.access;
     
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && newToken) {
       // Update both storage methods for compatibility
       localStorage.setItem("access_token", newToken);
       
@@ -266,7 +295,17 @@ export const refreshAccessToken = async (): Promise<string | null> => {
     }
     
     return newToken;
-  } catch {
+  } catch (error: any) {
+    console.error("❌ Token refresh failed:", error.response?.status, error.response?.data);
+    // If refresh token is invalid/expired, clear all auth data
+    if (error.response?.status === 401) {
+      console.log("🚪 Refresh token expired, clearing auth data");
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("user");
+      }
+    }
     return null;
   }
 };
@@ -545,6 +584,7 @@ export const getVehicleHistory = async (
     max_points?: number; // default 100
     include_details?: boolean;
     include_raw?: boolean;
+    aggregation?: string; // "daily", "hourly", "minute" - controls data granularity
   } = {}
 ) => {
   if (!Number.isFinite(vehicleId) || vehicleId <= 0) {
@@ -568,6 +608,7 @@ export const getVehicleHistory = async (
     max_points: params.max_points,
     include_details: params.include_details ? "true" : undefined,
     include_raw: params.include_raw ? "true" : undefined,
+    aggregation: params.aggregation,
   } as Record<string, any>;
 
   Object.entries(base).forEach(([k, v]) => {
@@ -808,11 +849,11 @@ export const getOBDTelemetry = async (id: number) => {
  * ✅ SIM MANAGEMENT
  */
 export const getSIMCard = async (id: number) => {
-  const res = await api.get(`/api/fleet/sim-cards/${id}`);
+  const res = await api.get(`/api/fleet/sim-cards/${id}/`);
   return res.data;
 };
 export const deleteSIMCard = async (id: number) => {
-  const res = await api.delete(`/api/fleet/sim-cards/${id}`);
+  const res = await api.delete(`/api/fleet/sim-cards/${id}/`);
   return res.data;
 };
 export const listSIMCards = async (page: number = 1) => {
@@ -825,6 +866,10 @@ export const listSIMCardsSummary = async () => {
 };
 export const createSIM = async (data: any) => {
   const res = await api.post("/api/fleet/sim-cards/", data);
+  return res.data;
+};
+export const updateSIMCard = async (id: number, data: any) => {
+  const res = await api.patch(`/api/fleet/sim-cards/${id}/`, data);
   return res.data;
 };
 export const suspendSIM = async (id: number) => {
@@ -1030,10 +1075,18 @@ export const updateFirmwareUpdates = async (id: number, data: any) => {
       },
       timeout: 60000, // 60 seconds for file uploads
     };
+  } else {
+    // For JSON data, set proper content type
+    config = {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    };
   }
 
   try {
-    const res = await api.put(`/api/fleet/firmware-updates/${id}/`, data, config);
+    // Try PATCH instead of PUT to avoid triggering status validation
+    const res = await api.patch(`/api/fleet/firmware-updates/${id}/`, data, config);
     return res.data;
   } catch (error) {
     console.error("Firmware update error:", error);

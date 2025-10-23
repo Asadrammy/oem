@@ -92,20 +92,38 @@ export default function EditFirmwarePage() {
     setErr("");
 
     try {
-      const formData = new FormData();
-      formData.append("component", component);
-      formData.append("version", version);
-      formData.append("description", description);
-      formData.append("release_date", releaseDate);
+      // Create a JSON payload instead of FormData to avoid multipart issues
+      const updatePayload: any = {
+        component,
+        version,
+        description,
+        release_date: releaseDate,
+        priority: Number(priority)
+      };
+
       if (selectedVehicleType !== null) {
-        formData.append("vehicle_type", selectedVehicleType.toString());
+        updatePayload.vehicle_type = selectedVehicleType;
       }
-      formData.append("priority", priority);
-      
-      // Only append file if a new one is selected
+
+      // Only include file if a new one is selected
       if (file) {
+        // If file is selected, we need to use FormData
+        const formData = new FormData();
+        formData.append("component", component);
+        formData.append("version", version);
+        formData.append("description", description);
+        formData.append("release_date", releaseDate);
+        if (selectedVehicleType !== null) {
+          formData.append("vehicle_type", selectedVehicleType.toString());
+        }
+        formData.append("priority", priority);
         formData.append("file", file);
         formData.append("file_size", file.size.toString());
+
+        await updateFirmwareUpdates(firmwareId, formData);
+      } else {
+        // No file update, use JSON payload
+        await updateFirmwareUpdates(firmwareId, updatePayload);
       }
 
       // Debug logging
@@ -120,14 +138,6 @@ export default function EditFirmwarePage() {
         hasFile: !!file,
         existingFile
       });
-
-      // Log FormData contents
-      console.log("FormData contents:");
-      for (let [key, value] of formData.entries()) {
-        console.log(`${key}:`, value);
-      }
-
-      await updateFirmwareUpdates(firmwareId, formData);
       alert("Firmware updated successfully!");
       router.push("/firmware-updates");
     } catch (e: any) {
@@ -227,21 +237,27 @@ export default function EditFirmwarePage() {
             </div>
           )}
 
-          <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md">
-            <div className="font-medium">Note:</div>
-            <div className="text-sm mt-1">
-              To change the firmware status (pause/resume), please use the status controls on the firmware list page. 
-              This form is for updating firmware details only.
-            </div>
-          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Component *</Label>
-              <Input
-                value={component}
-                onChange={(e) => setComponent(e.target.value)}
-              />
+              <Select value={component} onValueChange={setComponent}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select component" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="obd">OBD</SelectItem>
+                  <SelectItem value="ecu">ECU</SelectItem>
+                  <SelectItem value="bms">BMS</SelectItem>
+                  <SelectItem value="mcu">MCU</SelectItem>
+                  <SelectItem value="gps">GPS</SelectItem>
+                  <SelectItem value="telematics">Telematics</SelectItem>
+                  <SelectItem value="gateway">Gateway</SelectItem>
+                  <SelectItem value="infotainment">Infotainment</SelectItem>
+                  <SelectItem value="body">Body</SelectItem>
+                  <SelectItem value="powertrain">Powertrain</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Version *</Label>

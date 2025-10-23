@@ -31,7 +31,7 @@ export default function AddFirmwarePage() {
   const [isFormValid, setIsFormValid] = useState(false);
 
   // Form state
-  const [component, setComponent] = useState("obd");
+  const [component, setComponent] = useState("");
   const [version, setVersion] = useState("");
   const [description, setDescription] = useState("");
   const [releaseDate, setReleaseDate] = useState("");
@@ -201,10 +201,23 @@ const onSubmit = async () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Component *</Label>
-              <Input
-                value={component}
-                onChange={(e) => setComponent(e.target.value)}
-              />
+              <Select value={component} onValueChange={setComponent}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select component" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="obd">OBD</SelectItem>
+                  <SelectItem value="ecu">ECU</SelectItem>
+                  <SelectItem value="bms">BMS</SelectItem>
+                  <SelectItem value="mcu">MCU</SelectItem>
+                  <SelectItem value="gps">GPS</SelectItem>
+                  <SelectItem value="telematics">Telematics</SelectItem>
+                  <SelectItem value="gateway">Gateway</SelectItem>
+                  <SelectItem value="infotainment">Infotainment</SelectItem>
+                  <SelectItem value="body">Body</SelectItem>
+                  <SelectItem value="powertrain">Powertrain</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Version *</Label>
