@@ -17,6 +17,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface UserProfile {
   id: number;
@@ -60,6 +68,11 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Delete dialog state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -92,6 +105,35 @@ export default function UsersPage() {
       console.error("Error fetching users:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openDelete = (user: User) => {
+    setDeleteId(user.id);
+    setDeleteOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      await deleteUser(deleteId);
+      setUsers((prev) => prev.filter((u) => u.id !== deleteId));
+      setDeleteOpen(false);
+      setDeleteId(null);
+      fetchUsers(page);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete user");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      setDeleteOpen(false);
+      setDeleteId(null);
     }
   };
 
@@ -225,19 +267,10 @@ export default function UsersPage() {
                             variant="ghost"
                             size="sm"
                             aria-label={`Delete user ${u.username}`}
-                            onClick={async () => {
-                              if (
-                                confirm("Are you sure you want to delete this user?")
-                              ) {
-                                try {
-                                  await deleteUser(u.id);
-                                  alert("User deleted successfully");
-                                  fetchUsers(page);
-                                } catch (err) {
-                                  console.error(err);
-                                  alert("Failed to delete user");
-                                }
-                              }
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              openDelete(u);
                             }}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -293,6 +326,45 @@ export default function UsersPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Dialog */}
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={handleDialogClose}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete user "{users.find(u => u.id === deleteId)?.username}"?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDialogClose(false);
+              }}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDelete();
+              }}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

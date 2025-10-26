@@ -16,6 +16,14 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface Condition {
   id: number;
@@ -47,6 +55,11 @@ export default function AlertRulesPage() {
   const [alertRules, setAlertRules] = useState<AlertRule[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Delete dialog state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   // input vs applied search
   const [searchText, setSearchText] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -72,6 +85,35 @@ export default function AlertRulesPage() {
       console.error("Error fetching alert rules:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openDelete = (rule: AlertRule) => {
+    setDeleteId(rule.id);
+    setDeleteOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      await deleteAlertRule(deleteId);
+      setAlertRules((prev) => prev.filter((r) => r.id !== deleteId));
+      setDeleteOpen(false);
+      setDeleteId(null);
+      fetchAlertRules(page);
+    } catch (err) {
+      console.error("Delete failed:", err);
+      alert("Failed to delete alert rule");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      setDeleteOpen(false);
+      setDeleteId(null);
     }
   };
 
@@ -198,17 +240,10 @@ export default function AlertRulesPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={async () => {
-                                if (confirm("Are you sure you want to delete this alert?")) {
-                                  try {
-                                    await deleteAlertRule(rule.id);
-                                    alert("Alert rule deleted successfully");
-                                    fetchAlertRules(page);
-                                  } catch (err) {
-                                    console.error("Delete failed:", err);
-                                    alert("Failed to delete alert rule");
-                                  }
-                                }
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                openDelete(rule);
                               }}
                             >
                               <Trash2 className="w-4 h-4" />
@@ -263,6 +298,45 @@ export default function AlertRulesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Dialog */}
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={handleDialogClose}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete alert "{alertRules.find(r => r.id === deleteId)?.title}"?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDialogClose(false);
+              }}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDelete();
+              }}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

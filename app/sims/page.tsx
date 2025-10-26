@@ -15,6 +15,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   Database,
   DollarSign,
   HardDrive,
@@ -54,6 +62,11 @@ export default function SIMCardListPage() {
   const [simCards, setSimCards] = useState<SIMCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
+
+  // Delete dialog state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
@@ -266,12 +279,17 @@ export default function SIMCardListPage() {
 
   const startIndex = totalCount === 0 ? 0 : (page - 1) * limit + 1;
   const endIndex = Math.min(page * limit, totalCount);
-  const handleDeleteSIMCard = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this SIM card?")) return;
+  const openDelete = (simCard: SIMCard) => {
+    setDeleteId(simCard.id);
+    setDeleteOpen(true);
+  };
 
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
     try {
-      console.log("🗑️ Attempting to delete SIM card with ID:", id);
-      const response = await deleteSIMCard(id);
+      console.log("🗑️ Attempting to delete SIM card with ID:", deleteId);
+      const response = await deleteSIMCard(deleteId);
       console.log("✅ Delete API response:", response);
       
       // Show success message
@@ -283,7 +301,7 @@ export default function SIMCardListPage() {
 
       // Immediately remove the SIM from local state for instant UI feedback
       setSimCards(prevCards => {
-        const filtered = prevCards.filter(card => card.id !== id);
+        const filtered = prevCards.filter(card => card.id !== deleteId);
         console.log("🔄 Updated SIM cards list:", filtered.length, "remaining");
         return filtered;
       });
@@ -311,6 +329,8 @@ export default function SIMCardListPage() {
         fetchSIMCards(page);
       }, 1000); // Increased delay to 1 second
       
+      setDeleteOpen(false);
+      setDeleteId(null);
     } catch (err) {
       console.error("❌ Error deleting SIM:", err);
       toast({
@@ -318,6 +338,15 @@ export default function SIMCardListPage() {
         description: "Something went wrong. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      setDeleteOpen(false);
+      setDeleteId(null);
     }
   };
   return (
@@ -578,7 +607,11 @@ export default function SIMCardListPage() {
                                 size="sm"
                                 variant="outline"
                                 className="h-8"
-                                onClick={() => handleDeleteSIMCard(sim.id)}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  openDelete(sim);
+                                }}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
@@ -649,6 +682,45 @@ export default function SIMCardListPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Dialog */}
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={handleDialogClose}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete SIM card "{simCards.find(s => s.id === deleteId)?.sim_id}"?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDialogClose(false);
+              }}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDelete();
+              }}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

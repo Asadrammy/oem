@@ -20,6 +20,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 
 interface FirmwareUpdate {
@@ -40,6 +48,11 @@ interface FirmwareUpdate {
 export default function FirmwareUpdatesPage() {
   const [updates, setUpdates] = useState<FirmwareUpdate[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Delete dialog state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -84,6 +97,43 @@ export default function FirmwareUpdatesPage() {
       console.error("Error fetching firmware updates:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openDelete = (update: FirmwareUpdate) => {
+    setDeleteId(update.id);
+    setDeleteOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      await firmwareUpdatesDelete(deleteId);
+      toast({
+        title: "Deleted",
+        description: "Firmware update deleted successfully!",
+      });
+      setUpdates((prev) => prev.filter((u) => u.id !== deleteId));
+      setDeleteOpen(false);
+      setDeleteId(null);
+      fetchUpdates(page); // refresh
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Error",
+        description: "Failed to delete firmware",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      setDeleteOpen(false);
+      setDeleteId(null);
     }
   };
 
@@ -230,29 +280,10 @@ export default function FirmwareUpdatesPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={async () => {
-                              if (
-                                confirm(
-                                  "Are you sure you want to delete this firmware update?"
-                                )
-                              ) {
-                                try {
-                                  await firmwareUpdatesDelete(fw.id);
-                                  toast({
-                                    title: "Deleted",
-                                    description:
-                                      "Firmware update deleted successfully!",
-                                  });
-                                  fetchUpdates(page); // refresh
-                                } catch (err) {
-                                  console.error(err);
-                                  toast({
-                                    title: "Error",
-                                    description: "Failed to delete firmware",
-                                    variant: "destructive",
-                                  });
-                                }
-                              }
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              openDelete(fw);
                             }}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -308,6 +339,45 @@ export default function FirmwareUpdatesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Dialog */}
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={handleDialogClose}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete firmware update "{updates.find(u => u.id === deleteId)?.version}"?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDialogClose(false);
+              }}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDelete();
+              }}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

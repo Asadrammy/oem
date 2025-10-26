@@ -6,6 +6,14 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { deleteDevice, getOBDDevice, listVehicles } from "@/lib/api";
 import {
   Cpu,
@@ -45,21 +53,28 @@ export default function OBDDeviceDetailPage() {
   const [device, setDevice] = useState<any>(null);
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Delete dialog state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const handleDelete = async () => {
     if (!device?.id) return;
-
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this device?"
-    );
-    if (!confirmDelete) return;
-
+    setDeleting(true);
     try {
       await deleteDevice(device.id);
-      alert("Device deleted successfully!");
-      router.push("/obd-device"); // 👈 redirect to device list page after delete
+      setDeleteOpen(false);
+      router.push("/obd-device"); // redirect to device list page after delete
     } catch (error: any) {
       console.error("Delete failed:", error);
       alert(error?.message || "Failed to delete device");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      setDeleteOpen(false);
     }
   };
 
@@ -147,7 +162,14 @@ export default function OBDDeviceDetailPage() {
             </Button>
 
             {/* {device.vehicle && ( */}
-            <Button variant="outline" onClick={handleDelete}>
+            <Button 
+              variant="outline" 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDeleteOpen(true);
+              }}
+            >
               <span className="flex items-center">
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete
@@ -522,6 +544,45 @@ export default function OBDDeviceDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete Dialog */}
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={handleDialogClose}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete OBD device "{device?.device_id}"?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDialogClose(false);
+              }}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDelete();
+              }}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

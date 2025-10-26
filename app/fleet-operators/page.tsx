@@ -17,6 +17,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface FleetOperator {
   id: number;
@@ -36,6 +44,11 @@ export default function FleetOperatorPage() {
   const router = useRouter();
   const [operators, setOperators] = useState<FleetOperator[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Delete dialog state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -83,6 +96,35 @@ export default function FleetOperatorPage() {
       fetchOperators(1);
     }
   }, [searchTerm]);
+
+  const openDelete = (operator: FleetOperator) => {
+    setDeleteId(operator.id);
+    setDeleteOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      await deleteFleetOperator(deleteId);
+      setOperators((prev) => prev.filter((op) => op.id !== deleteId));
+      setDeleteOpen(false);
+      setDeleteId(null);
+      fetchOperators(page);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete operator");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      setDeleteOpen(false);
+      setDeleteId(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -184,17 +226,10 @@ export default function FleetOperatorPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={async () => {
-                              if (confirm("Are you sure you want to delete this operator?")) {
-                                try {
-                                  await deleteFleetOperator(op.id);
-                                  alert("Operator deleted successfully");
-                                  fetchOperators(page);
-                                } catch (err) {
-                                  console.error(err);
-                                  alert("Failed to delete operator");
-                                }
-                              }
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              openDelete(op);
                             }}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -248,6 +283,45 @@ export default function FleetOperatorPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Dialog */}
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={handleDialogClose}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete fleet operator "{operators.find(op => op.id === deleteId)?.name}"?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDialogClose(false);
+              }}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDelete();
+              }}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

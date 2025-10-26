@@ -98,6 +98,10 @@ export default function UserDetailPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false); // Add deleting state
+  const [deleteOpen, setDeleteOpen] = useState(false); // Add delete dialog state
+  const [removePermissionOpen, setRemovePermissionOpen] = useState(false); // Add remove permission dialog state
+  const [permissionToRemove, setPermissionToRemove] = useState<number | null>(null); // Track which permission to remove
+  const [removingPermission, setRemovingPermission] = useState(false); // Add removing permission state
 
   // Permissions state
   const [userPermissions, setUserPermissions] = useState<UserPermissions | null>(null);
@@ -178,7 +182,21 @@ export default function UserDetailPage() {
       console.log("Fetching permissions for user:", userId);
       const data = await getUserPermissions(userId);
       console.log("Permissions data received:", data);
-      setUserPermissions(data);
+      
+      // Ensure data has the expected structure
+      const directPermissions = data?.direct_permissions || [];
+      const groupPermissions = data?.group_permissions || [];
+      
+      // Create all_permissions by combining direct and group permissions
+      const allPermissions = [...directPermissions, ...groupPermissions];
+      
+      const safeData = {
+        direct_permissions: directPermissions,
+        group_permissions: groupPermissions,
+        all_permissions: allPermissions
+      };
+      
+      setUserPermissions(safeData);
     } catch (error) {
       console.error("Error fetching user permissions:", error);
       setPermissionsError("Failed to load permissions");
@@ -201,18 +219,20 @@ export default function UserDetailPage() {
   };
 
   // Remove permission from user
-  const handleRemovePermission = async (permissionId: number) => {
-    if (!userPermissions?.direct_permissions) return;
+  const handleRemovePermission = async () => {
+    if (!userPermissions?.direct_permissions || !permissionToRemove) return;
     
-    const confirmRemove = window.confirm("Are you sure you want to remove this permission?");
-    if (!confirmRemove) return;
-    
+    setRemovingPermission(true);
     try {
       const remainingPermissions = userPermissions.direct_permissions
-        .filter(p => p.id !== permissionId)
+        .filter(p => p.id !== permissionToRemove)
         .map(p => p.id);
       
-      await updateUserPermissions(userId, remainingPermissions);
+      console.log("Removing permission:", permissionToRemove);
+      console.log("Remaining permissions:", remainingPermissions);
+      
+      const result = await updateUserPermissions(userId, remainingPermissions);
+      console.log("Update result:", result);
       
       toast({
         title: "Success",
@@ -221,6 +241,10 @@ export default function UserDetailPage() {
       
       // Refresh permissions
       await fetchUserPermissions();
+      
+      // Close dialog
+      setRemovePermissionOpen(false);
+      setPermissionToRemove(null);
     } catch (error) {
       console.error("Error removing permission:", error);
       toast({
@@ -228,6 +252,22 @@ export default function UserDetailPage() {
         description: "Failed to remove permission",
         variant: "destructive",
       });
+    } finally {
+      setRemovingPermission(false);
+    }
+  };
+
+  // Open remove permission dialog
+  const openRemovePermissionDialog = (permissionId: number) => {
+    setPermissionToRemove(permissionId);
+    setRemovePermissionOpen(true);
+  };
+
+  // Handle remove permission dialog close
+  const handleRemovePermissionDialogClose = (open: boolean) => {
+    if (!open) {
+      setRemovePermissionOpen(false);
+      setPermissionToRemove(null);
     }
   };
 
@@ -298,24 +338,32 @@ export default function UserDetailPage() {
   const handleDelete = async () => {
     if (!user) return;
 
-    const confirmDelete = window.confirm(
-      `Are you sure you want to delete user "${user.first_name} ${user.last_name}"? This action cannot be undone.`
-    );
-
-    if (!confirmDelete) return;
-
     setDeleting(true);
     try {
       await deleteUser(user.id);
-      // Show success message (you can use a toast library here)
-      alert("User deleted successfully!");
+      toast({
+        title: "Success",
+        description: "User deleted successfully!",
+      });
       // Navigate back to users list
       router.push("/user");
     } catch (error) {
       console.error("Error deleting user:", error);
-      alert("Failed to delete user. Please try again.");
+      toast({
+        title: "Error",
+        description: "Failed to delete user. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setDeleting(false);
+      setDeleteOpen(false);
+    }
+  };
+
+  // Handle dialog close
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      setDeleteOpen(false);
     }
   };
 
@@ -380,7 +428,11 @@ export default function UserDetailPage() {
             </Button>
 
             <Button
-              onClick={handleDelete}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDeleteOpen(true);
+              }}
               disabled={deleting}
               variant="ghost"
               className="flex items-center bg-white gap-2 text-red-600 hover:text-red-700 disabled:opacity-50"
@@ -683,11 +735,11 @@ export default function UserDetailPage() {
                 <h3 className="text-lg font-semibold">User Permissions</h3>
                 {userPermissions && (
                   <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <span>Direct: {userPermissions.direct_permissions.length}</span>
+                    <span>Direct: {userPermissions.direct_permissions?.length || 0}</span>
                     <span>•</span>
-                    <span>Group: {userPermissions.group_permissions.length}</span>
+                    <span>Group: {userPermissions.group_permissions?.length || 0}</span>
                     <span>•</span>
-                    <span>Total: {userPermissions.all_permissions.length}</span>
+                    <span>Total: {userPermissions.all_permissions?.length || 0}</span>
                   </div>
                 )}
               </div>
@@ -816,7 +868,11 @@ export default function UserDetailPage() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => handleRemovePermission(permission.id)}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      openRemovePermissionDialog(permission.id);
+                                    }}
                                     className="text-red-600 hover:text-red-700"
                                   >
                                     <X className="w-4 h-4" />
@@ -1092,6 +1148,84 @@ export default function UserDetailPage() {
             </Button>
             <Button onClick={handleAddPermissions}>
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={handleDialogClose}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete user "{user?.first_name} {user?.last_name}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDialogClose(false);
+              }}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDelete();
+              }}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Permission Confirmation Dialog */}
+      <Dialog
+        open={removePermissionOpen}
+        onOpenChange={handleRemovePermissionDialogClose}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Remove Permission</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove this permission from the user? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleRemovePermissionDialogClose(false);
+              }}
+              disabled={removingPermission}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleRemovePermission();
+              }}
+              disabled={removingPermission}
+            >
+              {removingPermission ? "Removing..." : "Remove Permission"}
             </Button>
           </DialogFooter>
         </DialogContent>

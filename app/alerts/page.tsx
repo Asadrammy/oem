@@ -16,6 +16,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { listAlertRules, listVehiclesType, deleteAlertRule } from "@/lib/api";
 
 interface Condition {
@@ -52,6 +60,11 @@ export default function AlertRulesPage() {
   const [alertRules, setAlertRules] = useState<AlertRule[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Delete dialog state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
@@ -121,6 +134,35 @@ export default function AlertRulesPage() {
   const clearSearch = () => {
     setSearchTerm("");
     setPage(1);
+  };
+
+  const openDelete = (rule: AlertRule) => {
+    setDeleteId(rule.id);
+    setDeleteOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      await deleteAlertRule(deleteId);
+      setAlertRules((prev) => prev.filter((r) => r.id !== deleteId));
+      setDeleteOpen(false);
+      setDeleteId(null);
+      fetchAlertRules();
+    } catch (err) {
+      console.error("Delete failed:", err);
+      alert("Failed to delete alert rule");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      setDeleteOpen(false);
+      setDeleteId(null);
+    }
   };
 
   useEffect(() => {
@@ -302,21 +344,10 @@ export default function AlertRulesPage() {
                             variant="ghost"
                             size="sm"
                             aria-label={`Delete alert rule ${rule.name}`}
-                            onClick={async () => {
-                              if (
-                                confirm(
-                                  "Are you sure you want to delete this alert rule?"
-                                )
-                              ) {
-                                try {
-                                  await deleteAlertRule(rule.id);
-                                  alert("Alert rule deleted successfully");
-                                  fetchAlertRules();
-                                } catch (err) {
-                                  console.error("Delete failed:", err);
-                                  alert("Failed to delete alert rule");
-                                }
-                              }
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              openDelete(rule);
                             }}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -369,6 +400,45 @@ export default function AlertRulesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Dialog */}
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={handleDialogClose}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete alert rule "{alertRules.find(r => r.id === deleteId)?.name}"?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDialogClose(false);
+              }}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDelete();
+              }}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
     </AuthGuard>
   );

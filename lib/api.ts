@@ -420,9 +420,11 @@ export const getUserPermissions = async (userId: number) => {
 };
 
 export const updateUserPermissions = async (userId: number, permissions: number[]) => {
+  console.log(`Updating user ${userId} permissions:`, permissions);
   const res = await api.post(`/api/users/users/${userId}/permissions/`, {
     permissions
   });
+  console.log("Update permissions response:", res.data);
   return res.data;
 };
 export const updateUser = async (id: number, payload: any) => {
@@ -919,7 +921,7 @@ export const getAlerts = async (id: number) => {
   return res.data;
 };
 export const resolveAlerts = async (id: number) => {
-  const res = await api.patch(`/api/fleet/alerts/${id}/resolve`);
+  const res = await api.patch(`/api/fleet/alerts/${id}/resolve/`);
   return res.data;
 };
 // alert Rule api

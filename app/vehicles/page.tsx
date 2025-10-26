@@ -24,6 +24,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { listVehicles, listVehiclesType, deleteVehicle } from "@/lib/api";
 import { fuzzySearch } from "@/lib/fuzzySearch";
 
@@ -61,6 +69,11 @@ export default function VehiclesPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Delete dialog state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -159,6 +172,35 @@ export default function VehiclesPage() {
       console.error("Error fetching vehicles:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openDelete = (vehicle: Vehicle) => {
+    setDeleteId(vehicle.id);
+    setDeleteOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      await deleteVehicle(deleteId);
+      setVehicles((prev) => prev.filter((v) => v.id !== deleteId));
+      setDeleteOpen(false);
+      setDeleteId(null);
+      fetchVehicles(page);
+    } catch (err) {
+      console.error("Delete failed:", err);
+      alert("Failed to delete vehicle");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      setDeleteOpen(false);
+      setDeleteId(null);
     }
   };
 
@@ -380,16 +422,10 @@ export default function VehiclesPage() {
                               variant="ghost"
                               size="sm"
                               aria-label={`Delete vehicle ${vehicle.vin}`}
-                              onClick={async () => {
-                                if (confirm("Are you sure you want to delete this vehicle?")) {
-                                  try {
-                                    await deleteVehicle(vehicle.id);
-                                    fetchVehicles(page);
-                                  } catch (err) {
-                                    console.error("Delete failed:", err);
-                                    alert("Failed to delete vehicle");
-                                  }
-                                }
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                openDelete(vehicle);
                               }}
                             >
                               <Trash2 className="w-4 h-4" />
@@ -440,6 +476,45 @@ export default function VehiclesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Dialog */}
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={handleDialogClose}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete vehicle "{vehicles.find(v => v.id === deleteId)?.license_plate || vehicles.find(v => v.id === deleteId)?.vin}"?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDialogClose(false);
+              }}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleDelete();
+              }}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
     </AuthGuard>
   );

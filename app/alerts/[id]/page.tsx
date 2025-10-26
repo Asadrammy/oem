@@ -24,7 +24,7 @@ import {
   Timer,
   Trash2,
 } from "lucide-react";
-import { getAlertRuleById, deleteAlertRule } from "@/lib/api";
+import { getAlertRuleById, deleteAlertRule, updateAlertRules } from "@/lib/api";
 import api from "@/lib/api"; // assuming you have axios instance
 
 export default function AlertRuleDetailPage() {
@@ -50,17 +50,23 @@ export default function AlertRuleDetailPage() {
     }
   };
 
-  const resolveAlert = async () => {
-    if (!confirm("Are you sure you want to resolve this alert?")) return;
+  const toggleRuleStatus = async () => {
+    const newStatus = !alertRule.is_active;
+    const action = newStatus ? "activate" : "deactivate";
+    
+    if (!confirm(`Are you sure you want to ${action} this alert rule?`)) return;
 
     setResolving(true);
     try {
-      const res = await api.put(`/api/fleet/alerts/${id}/resolve/`, { method: "PUT" });
-      alert("Alert resolved successfully");
+      const res = await updateAlertRules(id, {
+        ...alertRule,
+        is_active: newStatus
+      });
+      alert(`Alert rule ${action}d successfully`);
       fetchData(); // Refresh data
     } catch (err) {
       console.error(err);
-      alert("Error resolving alert");
+      alert(`Error ${action}ing alert rule`);
     } finally {
       setResolving(false);
     }
@@ -134,16 +140,26 @@ export default function AlertRuleDetailPage() {
 
     {/* Right side: Actions */}
     <div className="flex items-center gap-3">
-      {alertRule.is_active && (
-        <Button
-          className="bg-green-600 text-white hover:bg-green-700"
-          onClick={resolveAlert}
-          disabled={resolving}
-        >
-          <CheckCircle className="w-4 h-4 mr-2" />
-          {resolving ? "Resolving..." : "Resolve Alert"}
-        </Button>
-      )}
+      <Button
+        className={alertRule.is_active 
+          ? "bg-orange-600 text-white hover:bg-orange-700" 
+          : "bg-green-600 text-white hover:bg-green-700"
+        }
+        onClick={toggleRuleStatus}
+        disabled={resolving}
+      >
+        {alertRule.is_active ? (
+          <>
+            <XCircle className="w-4 h-4 mr-2" />
+            {resolving ? "Deactivating..." : "Deactivate Rule"}
+          </>
+        ) : (
+          <>
+            <CheckCircle className="w-4 h-4 mr-2" />
+            {resolving ? "Activating..." : "Activate Rule"}
+          </>
+        )}
+      </Button>
       <Button variant="outline" onClick={fetchData}>
         <RefreshCw className="w-4 h-4 mr-2" />
         Refresh

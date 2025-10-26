@@ -264,18 +264,29 @@ export default function DevicesPage() {
                           </DialogTrigger>
                           <DialogContent>
                             <DialogHeader>
-                              <DialogTitle>Delete {d.device_id}?</DialogTitle>
+                              <DialogTitle>Confirm Delete</DialogTitle>
+                              <DialogDescription>
+                                Are you sure you want to delete OBD device "{d.device_id}"?
+                              </DialogDescription>
                             </DialogHeader>
                             <DialogFooter>
                               <Button
                                 variant="outline"
-                                onClick={() => setDeleteOpen(false)}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setDeleteOpen(false);
+                                }}
                               >
                                 Cancel
                               </Button>
                               <Button
                                 variant="destructive"
-                                onClick={handleDelete}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDelete();
+                                }}
                               >
                                 Delete
                               </Button>

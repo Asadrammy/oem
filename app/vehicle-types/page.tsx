@@ -163,6 +163,13 @@ export default function Page() {
     }
   };
 
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      setDeleteOpen(false);
+      setDeleteId(null);
+    }
+  };
+
   const goToVehicleTypeDetail = (id: number) => {
     router.push(`/vehicle-types/${id}`); // adjust the route if needed
   };
@@ -284,7 +291,13 @@ export default function Page() {
                     <TableRow
                       key={row.id}
                       className="border-b hover:bg-gray-50 cursor-pointer"
-                      onClick={() => goToVehicleTypeDetail(row.id)}
+                      onClick={() => {
+                        // Don't navigate if delete dialog is open for this row
+                        if (deleteOpen && deleteId === row.id) {
+                          return;
+                        }
+                        goToVehicleTypeDetail(row.id);
+                      }}
                     >
                       <TableCell>
                         <span
@@ -332,24 +345,24 @@ export default function Page() {
                           <Edit className="w-4 h-4" />
                         </Button>
 
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            openDelete(row);
+                          }}
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+
                         {/* Delete Dialog */}
                         <Dialog
                           open={deleteOpen && deleteId === row.id}
-                          onOpenChange={setDeleteOpen}
+                          onOpenChange={handleDialogClose}
                         >
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openDelete(row);
-                              }}
-                              title="Delete"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </DialogTrigger>
                           <DialogContent>
                             <DialogHeader>
                               <DialogTitle>Confirm Delete</DialogTitle>
@@ -361,14 +374,22 @@ export default function Page() {
                             <DialogFooter>
                               <Button
                                 variant="outline"
-                                onClick={() => setDeleteOpen(false)}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDialogClose(false);
+                                }}
                                 disabled={deleting}
                               >
                                 Cancel
                               </Button>
                               <Button
                                 variant="destructive"
-                                onClick={handleDelete}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDelete();
+                                }}
                                 disabled={deleting}
                               >
                                 {deleting ? "Deleting…" : "Delete"}
